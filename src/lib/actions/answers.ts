@@ -78,14 +78,30 @@ export async function completeAttempt(
     return { isSuccessful, correctCount, totalQuestions };
   }
 
+  // Get task info and attempt count
+  const { data: task } = await db(supabase.from("daily_tasks"))
+    .select("is_completed, kid_id")
+    .eq("id", attempt.daily_task_id)
+    .single();
+
+  // Get attempt number for this attempt
+  const { data: attemptInfo } = await db(supabase.from("task_attempts"))
+    .select("attempt_number")
+    .eq("id", attemptId)
+    .single();
+
+  const attemptNumber = attemptInfo?.attempt_number || 1;
+
+  // Check for retry badges (awarded even if not successful)
+  if (task && attemptNumber >= 2) {
+    await awardBadge(task.kid_id, "retry_1");
+  }
+  if (task && attemptNumber >= 4) {
+    await awardBadge(task.kid_id, "retry_3");
+  }
+
   // If successful, mark task as completed and award XP
   if (isSuccessful) {
-    // Get task to check if already completed
-    const { data: task } = await db(supabase.from("daily_tasks"))
-      .select("is_completed, kid_id")
-      .eq("id", attempt.daily_task_id)
-      .single();
-
     // Only award XP if this is first completion
     if (task && !task.is_completed) {
       // Mark task as completed
@@ -98,6 +114,11 @@ export async function completeAttempt(
 
       // Award XP and update gamification
       await updateGamificationOnCompletion(task.kid_id);
+
+      // Check for perfect score badge (7/7 correct on first attempt)
+      if (attemptNumber === 1 && correctCount === totalQuestions) {
+        await awardBadge(task.kid_id, "perfect_score");
+      }
 
       // Generate session summary
       await generateSessionSummary(attempt.daily_task_id);
@@ -174,17 +195,29 @@ async function updateGamificationOnCompletion(kidId: string) {
     .eq("kid_id", kidId);
 
   // Check for badge unlocks
-  if (newStreak === 7) {
+
+  // Streak badges
+  if (newStreak >= 7) {
     await awardBadge(kidId, "streak_7");
   }
+
+  // Task completion badges
   if (current.tasks_completed === 0) {
     await awardBadge(kidId, "first_task");
   }
-  if (current.tasks_completed + 1 === 10) {
+  if (current.tasks_completed + 1 >= 10) {
     await awardBadge(kidId, "ten_tasks");
   }
-  if (newLevel === 5 && current.level < 5) {
+
+  // Level badges
+  if (newLevel >= 1 && current.level < 1) {
+    await awardBadge(kidId, "level_1");
+  }
+  if (newLevel >= 5 && current.level < 5) {
     await awardBadge(kidId, "level_5");
+  }
+  if (newLevel >= 10 && current.level < 10) {
+    await awardBadge(kidId, "level_10");
   }
 }
 

@@ -46,11 +46,20 @@ export async function GET() {
 
     // Seed badges
     const { error: badgeError } = await db(supabase.from("badges")).insert([
-      { name: "streak_7", description: "7-Day Streak", icon: "🔥", criteria: { type: "streak", value: 7 } },
-      { name: "first_task", description: "First Task Complete", icon: "⭐", criteria: { type: "tasks_completed", value: 1 } },
-      { name: "ten_tasks", description: "10 Tasks Complete", icon: "🏆", criteria: { type: "tasks_completed", value: 10 } },
-      { name: "perfect_attempt", description: "Perfect Score", icon: "💯", criteria: { type: "perfect_attempt", value: true } },
-      { name: "level_5", description: "Level 5 Reached", icon: "🎖️", criteria: { type: "level", value: 5 } },
+      // Streak badges
+      { name: "streak_7", description: "7-Day Streak Champion", icon: "🔥", criteria: { type: "streak", value: 7 } },
+      // Level badges
+      { name: "level_1", description: "First Steps", icon: "🌟", criteria: { type: "level", value: 1 } },
+      { name: "level_5", description: "Rising Star", icon: "⭐", criteria: { type: "level", value: 5 } },
+      { name: "level_10", description: "Super Learner", icon: "🏆", criteria: { type: "level", value: 10 } },
+      // Perfect score badges
+      { name: "perfect_score", description: "Perfect Score", icon: "💯", criteria: { type: "perfect_score", value: true } },
+      // Retry badges (persistence)
+      { name: "retry_1", description: "Never Give Up", icon: "💪", criteria: { type: "retry", value: 1 } },
+      { name: "retry_3", description: "Persistence Pro", icon: "🦾", criteria: { type: "retry", value: 3 } },
+      // Legacy badges
+      { name: "first_task", description: "First Task Complete", icon: "🎯", criteria: { type: "tasks_completed", value: 1 } },
+      { name: "ten_tasks", description: "10 Tasks Complete", icon: "🎖️", criteria: { type: "tasks_completed", value: 10 } },
     ]);
     if (badgeError) throw badgeError;
 

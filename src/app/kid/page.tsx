@@ -5,6 +5,30 @@ import { getCurrentKid, logout } from "@/lib/actions/auth";
 import { getOrCreateDailyTasks } from "@/lib/actions/tasks";
 import { getSimulationDate, advanceSimulationDay } from "@/lib/actions/simulation";
 
+// Helper to bypass strict Supabase type checking
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = (table: any) => table as any;
+
+// XP required for each level: Level = floor(XP / 100) + 1
+// So Level 2 needs 100 XP, Level 3 needs 200 XP, etc.
+const XP_PER_TASK = 50;
+const XP_PER_LEVEL = 100;
+
+function calculateLevel(xp: number): number {
+  return Math.floor(xp / XP_PER_LEVEL) + 1;
+}
+
+function xpForNextLevel(currentXp: number): number {
+  const currentLevel = calculateLevel(currentXp);
+  return currentLevel * XP_PER_LEVEL;
+}
+
+interface PotentialBadge {
+  name: string;
+  icon: string;
+  description: string;
+}
+
 /**
  * Kid Dashboard (Server Component)
  * Home page matching mockup - shows lesson, promo card, and CTA
@@ -29,7 +53,24 @@ export default async function KidDashboard() {
     .eq("kid_id", kid.id)
     .single();
 
-  const stats = gamification || { xp: 0, level: 1, streak: 0, tasks_completed: 0 };
+  const stats = gamification || { xp: 0, level: 1, streak: 0, tasks_completed: 0, last_active_date: null };
+
+  // Get kid's earned badges
+  const { data: earnedBadges } = await db(supabase.from("kid_badges"))
+    .select("badge_id")
+    .eq("kid_id", kid.id);
+
+  const earnedBadgeIds = new Set((earnedBadges || []).map((b: { badge_id: string }) => b.badge_id));
+
+  // Get all available badges
+  interface BadgeRecord {
+    id: string;
+    name: string;
+    icon: string;
+    description: string;
+  }
+  const { data: allBadges } = await db(supabase.from("badges")).select("*");
+  const badgeMap = new Map<string, BadgeRecord>((allBadges || []).map((b: BadgeRecord) => [b.name, b]));
 
   // Format next lesson date (mock - tomorrow at 12:00)
   const nextLessonDate = new Date(simulationDate);
@@ -40,8 +81,96 @@ export default async function KidDashboard() {
     month: 'short'
   });
 
-  // Count incomplete tasks
-  const incompleteTasks = tasks.filter(t => !t.is_completed).length;
+  // Count incomplete tasks and calculate available XP
+  const incompleteTasks = tasks.filter(t => !t.is_completed);
+  const incompleteCount = incompleteTasks.length;
+  const availableXp = incompleteCount * XP_PER_TASK;
+
+  // Calculate if completing tasks will cause level up
+  const currentXp = stats.xp;
+  const currentLevel = stats.level;
+  const potentialXp = currentXp + availableXp;
+  const potentialLevel = calculateLevel(potentialXp);
+  const willLevelUp = potentialLevel > currentLevel;
+  const xpNeededForNextLevel = xpForNextLevel(currentXp);
+  const xpRemainingForNextLevel = xpNeededForNextLevel - currentXp;
+  const isCloseToLevelUp = willLevelUp || (availableXp >= xpRemainingForNextLevel);
+
+  // Calculate potential badges that could be earned
+  const potentialBadges: PotentialBadge[] = [];
+
+  // Check streak badge (7-day streak)
+  // If completing all tasks today would give a 7-day streak
+  const lastActiveDate = stats.last_active_date ? new Date(stats.last_active_date) : null;
+  const todayDate = new Date(simulationDate);
+  let projectedStreak = stats.streak;
+
+  if (lastActiveDate) {
+    const diffDays = Math.floor((todayDate.getTime() - lastActiveDate.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays === 1) {
+      projectedStreak = stats.streak + 1;
+    } else if (diffDays > 1) {
+      projectedStreak = 1;
+    }
+  } else {
+    projectedStreak = 1;
+  }
+
+  // 7-day streak badge
+  const streak7Badge = badgeMap.get("streak_7");
+  if (streak7Badge && projectedStreak >= 7 && !earnedBadgeIds.has(streak7Badge.id)) {
+    potentialBadges.push({ name: "7-Day Streak", icon: "🔥", description: "Complete all tasks for 7 days!" });
+  }
+
+  // Level badges
+  const level1Badge = badgeMap.get("level_1");
+  if (level1Badge && potentialLevel >= 1 && currentLevel < 1 && !earnedBadgeIds.has(level1Badge.id)) {
+    potentialBadges.push({ name: "First Steps", icon: "🌟", description: "Reach Level 1!" });
+  }
+
+  const level5Badge = badgeMap.get("level_5");
+  if (level5Badge && potentialLevel >= 5 && currentLevel < 5 && !earnedBadgeIds.has(level5Badge.id)) {
+    potentialBadges.push({ name: "Rising Star", icon: "⭐", description: "Reach Level 5!" });
+  }
+
+  const level10Badge = badgeMap.get("level_10");
+  if (level10Badge && potentialLevel >= 10 && currentLevel < 10 && !earnedBadgeIds.has(level10Badge.id)) {
+    potentialBadges.push({ name: "Super Learner", icon: "🏆", description: "Reach Level 10!" });
+  }
+
+  // Perfect score badge - always achievable if tasks remain
+  const perfectBadge = badgeMap.get("perfect_score");
+  if (perfectBadge && incompleteCount > 0 && !earnedBadgeIds.has(perfectBadge.id)) {
+    potentialBadges.push({ name: "Perfect Score", icon: "💯", description: "100% correct on first try!" });
+  }
+
+  // Build dynamic message
+  const tutorName = "Ms. Sarah Chen";
+
+  let promoTitle = "";
+  let promoDescription = "";
+
+  if (incompleteCount > 0) {
+    promoTitle = `${tutorName} sent you new challenges!`;
+
+    // Build description parts
+    const parts: string[] = [];
+    parts.push(`Complete these quests to earn <strong>${availableXp} XP</strong> and unlock cool rewards.`);
+
+    if (isCloseToLevelUp) {
+      parts.push(`You're very close to reaching <strong>Level ${potentialLevel}</strong> in your adventure!`);
+    }
+
+    if (potentialBadges.length > 0) {
+      const badgeNames = potentialBadges.slice(0, 2).map(b => `${b.icon} ${b.name}`).join(" or ");
+      parts.push(`You could earn the <strong>${badgeNames}</strong> badge${potentialBadges.length > 1 ? 's' : ''}!`);
+    }
+
+    promoDescription = parts.join(" ");
+  } else {
+    promoTitle = "Great job! All challenges complete!";
+    promoDescription = `You've earned all available XP for today. Come back tomorrow for new challenges from ${tutorName}!`;
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
@@ -113,36 +242,38 @@ export default async function KidDashboard() {
               <div className="card" style={{ display: 'flex', padding: 30, gap: 30, background: 'linear-gradient(to right, #ffffff, #f0f4ff)' }}>
                 <div style={{ flex: 1 }}>
                   <h3 style={{ fontSize: 22, marginBottom: 10 }}>
-                    {incompleteTasks > 0
-                      ? `You have ${incompleteTasks} challenge${incompleteTasks > 1 ? 's' : ''} waiting!`
-                      : "Great job! All challenges complete!"}
+                    {promoTitle}
                   </h3>
-                  <p style={{ color: '#4b5563', marginBottom: 20 }}>
-                    Complete these quests to earn <strong>50 Star Coins</strong> and unlock cool rewards.
-                    You&apos;re very close to reaching <strong>Level {stats.level + 1}</strong> in your adventure!
-                  </p>
-                  <Link href="/kid/mission" className="btn btn-yellow">
-                    <i className="fas fa-rocket"></i> Start Challenges
-                  </Link>
+                  <p
+                    style={{ color: '#4b5563', marginBottom: 20 }}
+                    dangerouslySetInnerHTML={{ __html: promoDescription }}
+                  />
+                  {incompleteCount > 0 && (
+                    <Link href="/kid/mission" className="btn btn-yellow">
+                      <i className="fas fa-rocket"></i> Start Challenges
+                    </Link>
+                  )}
                 </div>
                 <div style={{ position: 'relative', width: 200 }}>
-                  <span style={{
-                    position: 'absolute',
-                    top: 10,
-                    left: 10,
-                    background: '#e0e7ff',
-                    color: '#6679dd',
-                    padding: '4px 10px',
-                    borderRadius: 20,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 5,
-                    border: '1px solid #6679dd'
-                  }}>
-                    <i className="fas fa-rocket"></i> New Quest!
-                  </span>
+                  {incompleteCount > 0 && (
+                    <span style={{
+                      position: 'absolute',
+                      top: 10,
+                      left: 10,
+                      background: '#e0e7ff',
+                      color: '#6679dd',
+                      padding: '4px 10px',
+                      borderRadius: 20,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      border: '1px solid #6679dd'
+                    }}>
+                      <i className="fas fa-rocket"></i> {incompleteCount} Quest{incompleteCount > 1 ? 's' : ''}
+                    </span>
+                  )}
                   <div style={{
                     width: '100%',
                     height: 150,
@@ -154,10 +285,34 @@ export default async function KidDashboard() {
                     color: 'white',
                     fontSize: 48
                   }}>
-                    🚀
+                    {incompleteCount > 0 ? '🚀' : '🎉'}
                   </div>
                 </div>
               </div>
+
+              {/* Potential Badges Preview */}
+              {potentialBadges.length > 0 && incompleteCount > 0 && (
+                <div className="card" style={{ padding: 20, display: 'flex', alignItems: 'center', gap: 20, background: '#fffbeb', border: '1px solid #fcd34d' }}>
+                  <div style={{ fontSize: 32 }}>🏅</div>
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4, color: '#92400e' }}>Badges you can earn today!</h4>
+                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                      {potentialBadges.map((badge, i) => (
+                        <span key={i} style={{
+                          background: '#fef3c7',
+                          padding: '4px 10px',
+                          borderRadius: 20,
+                          fontSize: 12,
+                          fontWeight: 500,
+                          color: '#78350f'
+                        }}>
+                          {badge.icon} {badge.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Lesson Card */}
               <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 30 }}>
@@ -165,7 +320,7 @@ export default async function KidDashboard() {
                   <h2 style={{ fontSize: 20, marginBottom: 5 }}>{lessonDateStr} 12:00 PM</h2>
                   <p style={{ color: '#6679dd', fontWeight: 500 }}>
                     <i className="fas fa-calendar" style={{ marginRight: 8 }}></i>
-                    Math lesson in 1 day
+                    Math lesson with {tutorName} in 1 day
                   </p>
                 </div>
                 <div style={{ display: 'flex', gap: 15 }}>
@@ -214,9 +369,11 @@ export default async function KidDashboard() {
                     <div style={{ width: 40, height: 40, borderRadius: 8, background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <i className="fas fa-star" style={{ color: '#f59e0b' }}></i>
                     </div>
-                    <div>
+                    <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 600 }}>{stats.xp} XP</div>
-                      <div style={{ fontSize: 12, color: '#4b5563' }}>Total points</div>
+                      <div style={{ fontSize: 12, color: '#4b5563' }}>
+                        {xpNeededForNextLevel - currentXp} XP to Level {currentLevel + 1}
+                      </div>
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -245,7 +402,7 @@ export default async function KidDashboard() {
                 <div style={{ borderRadius: 8, overflow: 'hidden', height: 120, marginBottom: 15, background: 'linear-gradient(135deg, #6679dd 0%, #8b5cf6 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <i className="fas fa-chalkboard-teacher" style={{ fontSize: 40, color: 'white' }}></i>
                 </div>
-                <h3 style={{ fontSize: 16, marginBottom: 10 }}>Personalized 1:1 Tutoring</h3>
+                <h3 style={{ fontSize: 16, marginBottom: 10 }}>Your Tutor: {tutorName}</h3>
                 <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 13, color: '#4b5563' }}>
                   <li style={{ padding: '5px 0', paddingLeft: 15, position: 'relative' }}>
                     <span style={{ position: 'absolute', left: 0 }}>•</span>
