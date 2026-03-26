@@ -158,7 +158,9 @@ export default async function KidDashboard() {
     parts.push(`Complete these quests to earn <strong>${availableXp} XP</strong> and unlock cool rewards.`);
 
     if (isCloseToLevelUp) {
-      parts.push(`You're very close to reaching <strong>Level ${potentialLevel}</strong> in your adventure!`);
+      // Show the next level (current + 1), not the final level if multiple level-ups are possible
+      const nextLevel = currentLevel + 1;
+      parts.push(`You're very close to reaching <strong>Level ${nextLevel}</strong> in your adventure!`);
     }
 
     if (potentialBadges.length > 0) {
