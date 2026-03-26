@@ -399,6 +399,38 @@ export default async function KidDashboard() {
                 </div>
               </div>
 
+              {/* Badges Card */}
+              <div className="card" style={{ padding: 24 }}>
+                <h3 style={{ fontWeight: 600, marginBottom: 20 }}>
+                  <i className="fas fa-medal" style={{ marginRight: 8, color: '#f59e0b' }}></i>
+                  Your Badges
+                </h3>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+                  {(allBadges || [])
+                    .filter((badge: BadgeRecord) => badge.name !== 'perfect_attempt') // Filter legacy badge
+                    .map((badge: BadgeRecord) => {
+                      const isEarned = earnedBadgeIds.has(badge.id);
+                      return (
+                        <div
+                          key={badge.id}
+                          className={`badge-item ${isEarned ? 'earned' : 'locked'}`}
+                        >
+                          <span>{badge.icon}</span>
+                          <div className="badge-tooltip">
+                            <div className="badge-tooltip-title">{badge.description}</div>
+                            <div className={`badge-tooltip-status ${isEarned ? '' : 'locked'}`}>
+                              {isEarned ? '✓ Earned!' : '🔒 Keep going!'}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+                <div style={{ marginTop: 12, textAlign: 'center', fontSize: 12, color: '#64748b' }}>
+                  {earnedBadgeIds.size} of {(allBadges || []).filter((b: BadgeRecord) => b.name !== 'perfect_attempt').length} badges earned
+                </div>
+              </div>
+
               {/* Tutoring Card */}
               <div className="card" style={{ padding: 24 }}>
                 <div style={{ borderRadius: 8, overflow: 'hidden', height: 120, marginBottom: 15, background: 'linear-gradient(135deg, #6679dd 0%, #8b5cf6 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
