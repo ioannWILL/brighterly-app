@@ -1,0 +1,271 @@
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
+import { getCurrentKid } from "@/lib/actions/auth";
+import { getOrCreateDailyTasks } from "@/lib/actions/tasks";
+import { getSimulationDate, advanceSimulationDay } from "@/lib/actions/simulation";
+
+/**
+ * Kid Dashboard (Server Component)
+ * Home page matching mockup - shows lesson, promo card, and CTA
+ */
+export default async function KidDashboard() {
+  const kid = await getCurrentKid();
+
+  if (!kid) {
+    redirect("/login");
+  }
+
+  const supabase = await createClient();
+  const simulationDate = await getSimulationDate();
+
+  // Get or create today's tasks
+  const tasks = await getOrCreateDailyTasks(kid.id, simulationDate);
+
+  // Get kid's gamification stats
+  const { data: gamification } = await supabase
+    .from("kid_gamification")
+    .select("*")
+    .eq("kid_id", kid.id)
+    .single();
+
+  const stats = gamification || { xp: 0, level: 1, streak: 0, tasks_completed: 0 };
+
+  // Format next lesson date (mock - tomorrow at 12:00)
+  const nextLessonDate = new Date(simulationDate);
+  nextLessonDate.setDate(nextLessonDate.getDate() + 1);
+  const lessonDateStr = nextLessonDate.toLocaleDateString('en-US', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short'
+  });
+
+  // Count incomplete tasks
+  const incompleteTasks = tasks.filter(t => !t.is_completed).length;
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
+      {/* Navbar */}
+      <header className="navbar">
+        <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div className="logo">
+            <img src="https://cs.brighterly.com/_nuxt/brighterly.CIV4ES6z.svg" alt="Brighterly" style={{ height: 32 }} />
+          </div>
+
+          <nav className="nav-links">
+            <a href="#" className="nav-item active">
+              <i className="fas fa-calculator" style={{ fontSize: 14 }}></i> Math
+            </a>
+            <a href="#" className="nav-item">
+              <i className="fas fa-book" style={{ fontSize: 14 }}></i> ELA
+            </a>
+          </nav>
+
+          <div className="user-profile">
+            <Link href="/parent" className="nav-item" style={{ fontSize: 13 }}>
+              <i className="fas fa-user-shield"></i>
+              Parent
+            </Link>
+            <div className="avatar">{kid.name.charAt(0).toUpperCase()}</div>
+            <span className="username">{kid.name}</span>
+          </div>
+        </div>
+      </header>
+
+      <main style={{ padding: '30px 0' }}>
+        <div className="container">
+          {/* Page Header */}
+          <div style={{ marginBottom: 20 }}>
+            <h1 style={{ fontSize: 28, display: 'flex', alignItems: 'center', gap: 15 }}>
+              Math program
+              <a href="#" style={{ fontSize: 14, color: '#6679dd', textDecoration: 'none', fontWeight: 500 }}>
+                Read more <i className="fas fa-arrow-right"></i>
+              </a>
+            </h1>
+          </div>
+
+          {/* Tabs */}
+          <div style={{ display: 'flex', gap: 20, borderBottom: '1px solid #e5e7eb', marginBottom: 30 }}>
+            <button style={{ border: 'none', background: 'none', padding: '10px 0', fontSize: 15, fontWeight: 500, color: '#6679dd', borderBottom: '2px solid #6679dd', cursor: 'pointer' }}>
+              Home
+            </button>
+            <button style={{ border: 'none', background: 'none', padding: '10px 0', fontSize: 15, fontWeight: 500, color: '#4b5563', cursor: 'pointer' }}>
+              Files
+            </button>
+            <button style={{ border: 'none', background: 'none', padding: '10px 0', fontSize: 15, fontWeight: 500, color: '#9ca3af', cursor: 'not-allowed' }}>
+              Skill report
+            </button>
+          </div>
+
+          <div className="dashboard-grid">
+            {/* Main Column */}
+            <div className="main-column">
+              {/* Promo Card - Challenges CTA */}
+              <div className="card" style={{ display: 'flex', padding: 30, gap: 30, background: 'linear-gradient(to right, #ffffff, #f0f4ff)' }}>
+                <div style={{ flex: 1 }}>
+                  <h3 style={{ fontSize: 22, marginBottom: 10 }}>
+                    {incompleteTasks > 0
+                      ? `You have ${incompleteTasks} challenge${incompleteTasks > 1 ? 's' : ''} waiting!`
+                      : "Great job! All challenges complete!"}
+                  </h3>
+                  <p style={{ color: '#4b5563', marginBottom: 20 }}>
+                    Complete these quests to earn <strong>50 Star Coins</strong> and unlock cool rewards.
+                    You&apos;re very close to reaching <strong>Level {stats.level + 1}</strong> in your adventure!
+                  </p>
+                  <Link href="/kid/mission" className="btn btn-yellow">
+                    <i className="fas fa-rocket"></i> Start Challenges
+                  </Link>
+                </div>
+                <div style={{ position: 'relative', width: 200 }}>
+                  <span style={{
+                    position: 'absolute',
+                    top: 10,
+                    left: 10,
+                    background: '#e0e7ff',
+                    color: '#6679dd',
+                    padding: '4px 10px',
+                    borderRadius: 20,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    border: '1px solid #6679dd'
+                  }}>
+                    <i className="fas fa-rocket"></i> New Quest!
+                  </span>
+                  <div style={{
+                    width: '100%',
+                    height: 150,
+                    background: 'linear-gradient(135deg, #6679dd 0%, #8b5cf6 100%)',
+                    borderRadius: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white',
+                    fontSize: 48
+                  }}>
+                    🚀
+                  </div>
+                </div>
+              </div>
+
+              {/* Lesson Card */}
+              <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 30 }}>
+                <div>
+                  <h2 style={{ fontSize: 20, marginBottom: 5 }}>{lessonDateStr} 12:00 PM</h2>
+                  <p style={{ color: '#6679dd', fontWeight: 500 }}>
+                    <i className="fas fa-calendar" style={{ marginRight: 8 }}></i>
+                    Math lesson in 1 day
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: 15 }}>
+                  <button style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 8,
+                    border: '1px solid #e5e7eb',
+                    background: '#fff',
+                    color: '#4b5563',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <i className="fas fa-history"></i>
+                  </button>
+                  <button className="btn" style={{ background: '#cad5e2', color: '#fff', cursor: 'not-allowed' }}>
+                    Join lesson
+                  </button>
+                </div>
+              </div>
+
+              {/* Subscribe Card */}
+              <div className="card" style={{ padding: 30, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h3 style={{ fontSize: 18, marginBottom: 5 }}>Subscribe to get worksheets</h3>
+                  <p style={{ color: '#4b5563', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    Get free worksheets & lesson reminders via Meta Messenger
+                    <i className="fab fa-facebook-messenger" style={{ color: '#0084ff' }}></i>
+                  </p>
+                </div>
+                <button className="btn btn-outline">
+                  Subscribe <i className="fas fa-external-link-alt"></i>
+                </button>
+              </div>
+            </div>
+
+            {/* Sidebar Column */}
+            <div className="sidebar-column">
+              {/* Stats Card */}
+              <div className="card" style={{ padding: 24 }}>
+                <h3 style={{ fontWeight: 600, marginBottom: 20 }}>Your Progress</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 8, background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <i className="fas fa-star" style={{ color: '#f59e0b' }}></i>
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{stats.xp} XP</div>
+                      <div style={{ fontSize: 12, color: '#4b5563' }}>Total points</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 8, background: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <i className="fas fa-shield-alt" style={{ color: '#8b5cf6' }}></i>
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 600 }}>Level {stats.level}</div>
+                      <div style={{ fontSize: 12, color: '#4b5563' }}>Current level</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 8, background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <i className="fas fa-fire" style={{ color: '#ef4444' }}></i>
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{stats.streak} days</div>
+                      <div style={{ fontSize: 12, color: '#4b5563' }}>Current streak</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tutoring Card */}
+              <div className="card" style={{ padding: 24 }}>
+                <div style={{ borderRadius: 8, overflow: 'hidden', height: 120, marginBottom: 15, background: 'linear-gradient(135deg, #6679dd 0%, #8b5cf6 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <i className="fas fa-chalkboard-teacher" style={{ fontSize: 40, color: 'white' }}></i>
+                </div>
+                <h3 style={{ fontSize: 16, marginBottom: 10 }}>Personalized 1:1 Tutoring</h3>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 13, color: '#4b5563' }}>
+                  <li style={{ padding: '5px 0', paddingLeft: 15, position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: 0 }}>•</span>
+                    Learn tough concepts
+                  </li>
+                  <li style={{ padding: '5px 0', paddingLeft: 15, position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: 0 }}>•</span>
+                    Homework assistance
+                  </li>
+                  <li style={{ padding: '5px 0', paddingLeft: 15, position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: 0 }}>•</span>
+                    ADHD Friendly Learning
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {/* Next Day Button (Simulation Mode) */}
+      <form action={async () => {
+        "use server";
+        await advanceSimulationDay();
+      }}>
+        <button type="submit" className="next-day-float">
+          <i className="fas fa-sun" style={{ color: '#facc15' }}></i> Next Day
+        </button>
+      </form>
+    </div>
+  );
+}

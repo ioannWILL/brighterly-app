@@ -1,0 +1,177 @@
+import Link from "next/link";
+import { getCurrentKid } from "@/lib/actions/auth";
+import { createClient } from "@/lib/supabase/server";
+
+/**
+ * Parent Dashboard (Server Component)
+ * Shows child's progress and learning insights
+ */
+export default async function ParentDashboard() {
+  const kid = await getCurrentKid();
+  const supabase = await createClient();
+
+  // Get kid's gamification stats
+  let stats = { xp: 0, level: 1, streak: 0, tasks_completed: 0 };
+  if (kid) {
+    const { data: gamification } = await supabase
+      .from("kid_gamification")
+      .select("*")
+      .eq("kid_id", kid.id)
+      .single();
+    if (gamification) {
+      stats = gamification;
+    }
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--color-bg-light)' }}>
+      {/* Navbar */}
+      <header className="navbar">
+        <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div className="logo">
+            <img src="https://cs.brighterly.com/_nuxt/brighterly.CIV4ES6z.svg" alt="Brighterly" style={{ height: 32 }} />
+          </div>
+
+          <div className="user-profile">
+            <Link href="/kid" className="nav-item">
+              <i className="fas fa-arrow-left"></i>
+              Back to Kid View
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      <main style={{ padding: '40px 20px' }}>
+        <div className="container">
+          {/* Header */}
+          <div style={{ marginBottom: 40 }}>
+            <Link href="/kid" style={{ color: 'var(--color-primary)', textDecoration: 'none', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+              <i className="fas fa-arrow-left"></i> Back to Kid View
+            </Link>
+            <h1 style={{ fontSize: 32, marginBottom: 10 }}>Parent Dashboard</h1>
+            <p style={{ color: 'var(--color-text-gray)' }}>
+              {kid ? `Track ${kid.name}'s learning progress` : 'Track your child\'s learning progress'}
+            </p>
+          </div>
+
+          {kid ? (
+            <div className="dashboard-grid">
+              {/* Main Column */}
+              <div className="main-column">
+                {/* Profile Card */}
+                <div className="card" style={{ padding: 30, display: 'flex', alignItems: 'center', gap: 20 }}>
+                  <div className="avatar" style={{ width: 60, height: 60, fontSize: 24 }}>
+                    {kid.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <h2 style={{ fontSize: 20, marginBottom: 5 }}>{kid.name}</h2>
+                    <p style={{ color: 'var(--color-text-gray)', fontSize: 14 }}>
+                      Level {stats.level} • {stats.xp} XP
+                    </p>
+                  </div>
+                  <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: '#ff4500' }}>
+                      <i className="fas fa-fire" style={{ marginRight: 8 }}></i>
+                      {stats.streak}
+                    </div>
+                    <div style={{ fontSize: 13, color: 'var(--color-text-gray)' }}>Day Streak</div>
+                  </div>
+                </div>
+
+                {/* Progress Overview */}
+                <div className="card" style={{ padding: 30 }}>
+                  <h3 style={{ fontWeight: 600, marginBottom: 20 }}>
+                    <i className="fas fa-chart-line" style={{ marginRight: 10, color: 'var(--color-primary)' }}></i>
+                    Progress Overview
+                  </h3>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
+                    <div style={{ textAlign: 'center', padding: 20, background: '#f8fafc', borderRadius: 12 }}>
+                      <div style={{ fontSize: 28, fontWeight: 700, color: '#facc15' }}>{stats.xp}</div>
+                      <div style={{ fontSize: 13, color: 'var(--color-text-gray)' }}>Total XP</div>
+                    </div>
+                    <div style={{ textAlign: 'center', padding: 20, background: '#f8fafc', borderRadius: 12 }}>
+                      <div style={{ fontSize: 28, fontWeight: 700, color: '#8b5cf6' }}>{stats.level}</div>
+                      <div style={{ fontSize: 13, color: 'var(--color-text-gray)' }}>Current Level</div>
+                    </div>
+                    <div style={{ textAlign: 'center', padding: 20, background: '#f8fafc', borderRadius: 12 }}>
+                      <div style={{ fontSize: 28, fontWeight: 700, color: '#3b82f6' }}>{stats.tasks_completed}</div>
+                      <div style={{ fontSize: 13, color: 'var(--color-text-gray)' }}>Tasks Completed</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Learning Insights */}
+                <div className="card" style={{ padding: 30 }}>
+                  <h3 style={{ fontWeight: 600, marginBottom: 20 }}>
+                    <i className="fas fa-lightbulb" style={{ marginRight: 10, color: '#f59e0b' }}></i>
+                    Learning Insights
+                  </h3>
+
+                  <div style={{ background: '#f0fdf4', padding: 20, borderRadius: 12, borderLeft: '4px solid #4CAF50', marginBottom: 15 }}>
+                    <h4 style={{ color: '#166534', marginBottom: 8 }}>
+                      <i className="fas fa-star" style={{ marginRight: 8 }}></i>
+                      Excelling At
+                    </h4>
+                    <p style={{ color: 'var(--color-text-gray)', fontSize: 14 }}>
+                      {kid.name} is showing great progress! Keep up the practice.
+                    </p>
+                  </div>
+
+                  <div style={{ background: '#fff7ed', padding: 20, borderRadius: 12, borderLeft: '4px solid #f59e0b' }}>
+                    <h4 style={{ color: '#9a3412', marginBottom: 8 }}>
+                      <i className="fas fa-book-open" style={{ marginRight: 8 }}></i>
+                      Focus Areas
+                    </h4>
+                    <p style={{ color: 'var(--color-text-gray)', fontSize: 14 }}>
+                      Complete more daily tasks to identify specific focus areas.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sidebar Column */}
+              <div className="sidebar-column">
+                <div className="card" style={{ padding: 24 }}>
+                  <h3 style={{ fontWeight: 600, marginBottom: 15 }}>
+                    <i className="fas fa-comment" style={{ marginRight: 10, color: 'var(--color-primary)' }}></i>
+                    Conversation Starters
+                  </h3>
+                  <p style={{ color: 'var(--color-text-gray)', fontSize: 14, marginBottom: 20 }}>
+                    Ideas for discussing learning with {kid.name}:
+                  </p>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div style={{ padding: 15, background: '#f8fafc', borderRadius: 8 }}>
+                      <span style={{ background: '#e0e7ff', color: '#4338ca', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600 }}>MOTIVATION</span>
+                      <p style={{ fontSize: 13, marginTop: 8 }}>&quot;What was your favorite challenge today?&quot;</p>
+                    </div>
+                    <div style={{ padding: 15, background: '#f8fafc', borderRadius: 8 }}>
+                      <span style={{ background: '#f0fdf4', color: '#166534', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600 }}>ACHIEVEMENT</span>
+                      <p style={{ fontSize: 13, marginTop: 8 }}>&quot;You&apos;re on a {stats.streak}-day streak! How does that feel?&quot;</p>
+                    </div>
+                    <div style={{ padding: 15, background: '#f8fafc', borderRadius: 8 }}>
+                      <span style={{ background: '#fff7ed', color: '#c2410c', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600 }}>CONCEPT</span>
+                      <p style={{ fontSize: 13, marginTop: 8 }}>&quot;Can you teach me something new you learned?&quot;</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="card" style={{ padding: 40, textAlign: 'center' }}>
+              <i className="fas fa-user-circle" style={{ fontSize: 48, color: 'var(--color-text-gray)', marginBottom: 20 }}></i>
+              <h2 style={{ marginBottom: 10 }}>No Active Session</h2>
+              <p style={{ color: 'var(--color-text-gray)', marginBottom: 20 }}>
+                Please log in with your child to view their progress.
+              </p>
+              <Link href="/login" className="btn btn-primary">
+                <i className="fas fa-sign-in-alt"></i> Go to Login
+              </Link>
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
