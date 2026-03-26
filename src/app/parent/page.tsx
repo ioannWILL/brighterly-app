@@ -1,6 +1,10 @@
 import Link from "next/link";
-import { getCurrentKid } from "@/lib/actions/auth";
+import { getCurrentKid, getCurrentParent, logout } from "@/lib/actions/auth";
 import { createClient } from "@/lib/supabase/server";
+
+// Helper to bypass strict Supabase type checking
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = (table: any) => table as any;
 
 /**
  * Parent Dashboard (Server Component)
@@ -8,6 +12,7 @@ import { createClient } from "@/lib/supabase/server";
  */
 export default async function ParentDashboard() {
   const kid = await getCurrentKid();
+  const parent = await getCurrentParent();
   const supabase = await createClient();
 
   // Get kid's gamification stats
@@ -20,6 +25,18 @@ export default async function ParentDashboard() {
       .single();
     if (gamification) {
       stats = gamification;
+    }
+  }
+
+  // Get all kids for this parent (for switching)
+  let allKids: { id: string; name: string }[] = [];
+  if (parent) {
+    const { data: kids } = await db(supabase.from("kids"))
+      .select("id, name")
+      .eq("parent_id", parent.id)
+      .order("created_at");
+    if (kids) {
+      allKids = kids;
     }
   }
 
@@ -37,6 +54,21 @@ export default async function ParentDashboard() {
               <i className="fas fa-arrow-left"></i>
               Back to Kid View
             </Link>
+            {parent && (
+              <span style={{ marginLeft: 15, color: '#4b5563', fontSize: 14 }}>
+                <i className="fas fa-user" style={{ marginRight: 6, color: '#6679dd' }}></i>
+                {parent.name || parent.email}
+              </span>
+            )}
+            <form action={logout} style={{ display: 'inline' }}>
+              <button
+                type="submit"
+                className="nav-item"
+                style={{ fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', marginLeft: 10 }}
+              >
+                <i className="fas fa-sign-out-alt"></i> Logout
+              </button>
+            </form>
           </div>
         </div>
       </header>
@@ -50,7 +82,7 @@ export default async function ParentDashboard() {
             </Link>
             <h1 style={{ fontSize: 32, marginBottom: 10 }}>Parent Dashboard</h1>
             <p style={{ color: 'var(--color-text-gray)' }}>
-              {kid ? `Track ${kid.name}'s learning progress` : 'Track your child\'s learning progress'}
+              {parent ? `Welcome, ${parent.name || 'Parent'}!` : ''} Track your child&apos;s learning progress.
             </p>
           </div>
 
@@ -132,6 +164,52 @@ export default async function ParentDashboard() {
 
               {/* Sidebar Column */}
               <div className="sidebar-column">
+                {/* Account Info */}
+                <div className="card" style={{ padding: 24 }}>
+                  <h3 style={{ fontWeight: 600, marginBottom: 15 }}>
+                    <i className="fas fa-user-circle" style={{ marginRight: 10, color: 'var(--color-primary)' }}></i>
+                    Account Info
+                  </h3>
+                  {parent && (
+                    <div style={{ fontSize: 14, color: 'var(--color-text-gray)' }}>
+                      <p style={{ marginBottom: 8 }}>
+                        <strong>Name:</strong> {parent.name || 'Not set'}
+                      </p>
+                      <p style={{ marginBottom: 15 }}>
+                        <strong>Email:</strong> {parent.email}
+                      </p>
+                    </div>
+                  )}
+
+                  {allKids.length > 1 && (
+                    <div style={{ marginTop: 15, paddingTop: 15, borderTop: '1px solid #e5e7eb' }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Your Children:</p>
+                      {allKids.map((k) => (
+                        <div
+                          key={k.id}
+                          style={{
+                            padding: '8px 12px',
+                            background: k.id === kid.id ? '#e0e7ff' : '#f8fafc',
+                            borderRadius: 6,
+                            marginBottom: 6,
+                            fontSize: 14,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8
+                          }}
+                        >
+                          <i className="fas fa-child" style={{ color: k.id === kid.id ? '#6679dd' : '#9ca3af' }}></i>
+                          {k.name}
+                          {k.id === kid.id && (
+                            <span style={{ marginLeft: 'auto', fontSize: 11, color: '#6679dd' }}>Current</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Conversation Starters */}
                 <div className="card" style={{ padding: 24 }}>
                   <h3 style={{ fontWeight: 600, marginBottom: 15 }}>
                     <i className="fas fa-comment" style={{ marginRight: 10, color: 'var(--color-primary)' }}></i>
@@ -163,7 +241,7 @@ export default async function ParentDashboard() {
               <i className="fas fa-user-circle" style={{ fontSize: 48, color: 'var(--color-text-gray)', marginBottom: 20 }}></i>
               <h2 style={{ marginBottom: 10 }}>No Active Session</h2>
               <p style={{ color: 'var(--color-text-gray)', marginBottom: 20 }}>
-                Please log in with your child to view their progress.
+                Please log in to view your child&apos;s progress.
               </p>
               <Link href="/login" className="btn btn-primary">
                 <i className="fas fa-sign-in-alt"></i> Go to Login

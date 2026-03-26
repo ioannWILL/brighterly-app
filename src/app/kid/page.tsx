@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentKid } from "@/lib/actions/auth";
+import { getCurrentKid, logout } from "@/lib/actions/auth";
 import { getOrCreateDailyTasks } from "@/lib/actions/tasks";
 import { getSimulationDate, advanceSimulationDay } from "@/lib/actions/simulation";
 
@@ -68,6 +68,15 @@ export default async function KidDashboard() {
             </Link>
             <div className="avatar">{kid.name.charAt(0).toUpperCase()}</div>
             <span className="username">{kid.name}</span>
+            <form action={logout}>
+              <button
+                type="submit"
+                className="nav-item"
+                style={{ fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', marginLeft: 10 }}
+              >
+                <i className="fas fa-sign-out-alt"></i>
+              </button>
+            </form>
           </div>
         </div>
       </header>

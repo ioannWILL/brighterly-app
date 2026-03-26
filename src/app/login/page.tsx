@@ -4,8 +4,8 @@ import { getCurrentKid } from "@/lib/actions/auth";
 import { LoginForm } from "./login-form";
 
 /**
- * Login Page (Server Component)
- * Fetches grades and renders login form
+ * Login/Signup Page (Server Component)
+ * Fetches grades and renders login/signup form
  */
 export default async function LoginPage() {
   // If already logged in, redirect to kid dashboard
@@ -35,8 +35,8 @@ export default async function LoginPage() {
             src="https://cs.brighterly.com/_nuxt/brighterly.CIV4ES6z.svg"
             alt="Brighterly"
           />
-          <h1>Start Your Adventure</h1>
-          <p>Practice math and reading between your tutoring sessions</p>
+          <h1>Welcome to Brighterly</h1>
+          <p>Practice math and reading to boost your learning journey</p>
         </div>
 
         {grades && grades.length > 0 ? (
@@ -62,10 +62,18 @@ export default async function LoginPage() {
           </div>
         )}
 
-        {/* Demo Notice */}
-        <div className="demo-notice">
-          <strong>Demo Mode:</strong> Any inputs will create a mock session
-          for exploring the platform.
+        {/* Info Footer */}
+        <div style={{
+          marginTop: 24,
+          padding: '16px',
+          background: '#f0f9ff',
+          borderRadius: '8px',
+          fontSize: '13px',
+          color: '#0369a1',
+          textAlign: 'center'
+        }}>
+          <i className="fas fa-shield-alt" style={{ marginRight: 8 }}></i>
+          Your child&apos;s progress is saved automatically and synced across devices.
         </div>
       </div>
     </div>

@@ -16,6 +16,12 @@ export interface KidWithRelations extends Kid {
 
 export interface LoginFormData {
   email: string;
+  kidId?: string;
+}
+
+export interface SignupFormData {
+  parentName: string;
+  parentEmail: string;
   kidName: string;
   gradeId: string;
 }
@@ -24,97 +30,179 @@ export interface LoginResult {
   success: boolean;
   error?: string;
   kidId?: string;
+  kids?: Kid[];
+}
+
+export interface SignupResult {
+  success: boolean;
+  error?: string;
+  kidId?: string;
 }
 
 /**
- * Login/Signup Server Action
- * Simplified auth: email + kid name + grade
- * - If parent email exists, creates new kid linked to existing parent
- * - If parent email doesn't exist, creates parent and kid
- * - Stores kid_id in cookie for session management
+ * Login Server Action
+ * - Looks up parent by email
+ * - If found, returns their kids
+ * - If kid selected, creates session
  */
 export async function login(formData: LoginFormData): Promise<LoginResult> {
   const supabase = await createClient();
-
-  const { email, kidName, gradeId } = formData;
+  const { email, kidId } = formData;
 
   // Validate inputs
-  if (!email || !kidName || !gradeId) {
-    return { success: false, error: "All fields are required" };
+  if (!email) {
+    return { success: false, error: "Email is required" };
   }
 
   try {
-    // Check if parent exists
-    let parentId: string;
-    const { data: existingParent } = await db(supabase.from("parents"))
-      .select("id")
-      .eq("email", email.toLowerCase())
+    // Find parent by email
+    const { data: parent } = await db(supabase.from("parents"))
+      .select("id, name")
+      .eq("email", email.toLowerCase().trim())
       .single();
 
-    if (existingParent) {
-      parentId = existingParent.id;
-    } else {
-      // Create new parent
-      const { data: newParent, error: parentError } = await db(supabase.from("parents"))
-        .insert({ email: email.toLowerCase() })
-        .select("id")
-        .single();
-
-      if (parentError || !newParent) {
-        return { success: false, error: "Failed to create parent account" };
-      }
-      parentId = newParent.id;
+    if (!parent) {
+      return {
+        success: false,
+        error: "No account found with this email. Please sign up first."
+      };
     }
 
-    // Check if kid already exists for this parent
-    const { data: existingKid } = await db(supabase.from("kids"))
-      .select("id")
-      .eq("parent_id", parentId)
-      .eq("name", kidName)
-      .single();
+    // Get all kids for this parent
+    const { data: kids } = await db(supabase.from("kids"))
+      .select("*")
+      .eq("parent_id", parent.id)
+      .order("created_at");
 
-    let kidId: string;
+    if (!kids || kids.length === 0) {
+      return {
+        success: false,
+        error: "No children found for this account. Please sign up again."
+      };
+    }
 
-    if (existingKid) {
-      kidId = existingKid.id;
-    } else {
-      // Create new kid
-      const { data: newKid, error: kidError } = await db(supabase.from("kids"))
-        .insert({
-          parent_id: parentId,
-          name: kidName,
-          grade_id: gradeId,
-        })
-        .select("id")
-        .single();
-
-      if (kidError || !newKid) {
-        return { success: false, error: "Failed to create kid profile" };
+    // If specific kid requested, use that one
+    let selectedKid = kids[0];
+    if (kidId) {
+      const found = kids.find((k: Kid) => k.id === kidId);
+      if (found) {
+        selectedKid = found;
       }
-      kidId = newKid.id;
+    }
 
-      // Initialize gamification stats for new kid
-      await db(supabase.from("kid_gamification")).insert({
-        kid_id: kidId,
-        xp: 0,
-        level: 1,
-        streak: 0,
-        tasks_completed: 0,
-      });
+    // If multiple kids and no specific one selected, return list for selection
+    if (kids.length > 1 && !kidId) {
+      return {
+        success: true,
+        kids: kids as Kid[],
+      };
     }
 
     // Store kid_id in cookie for session
     const cookieStore = await cookies();
-    cookieStore.set("kid_id", kidId, {
+    cookieStore.set("kid_id", selectedKid.id, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 30, // 30 days
     });
 
-    return { success: true, kidId };
+    return { success: true, kidId: selectedKid.id };
   } catch (error) {
     console.error("Login error:", error);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+/**
+ * Signup Server Action
+ * - Creates new parent with name and email
+ * - Creates new kid linked to parent
+ * - Initializes gamification stats
+ * - Creates session
+ */
+export async function signup(formData: SignupFormData): Promise<SignupResult> {
+  const supabase = await createClient();
+  const { parentName, parentEmail, kidName, gradeId } = formData;
+
+  // Validate inputs
+  if (!parentName || !parentEmail || !kidName || !gradeId) {
+    return { success: false, error: "All fields are required" };
+  }
+
+  const email = parentEmail.toLowerCase().trim();
+
+  try {
+    // Check if parent already exists
+    const { data: existingParent } = await db(supabase.from("parents"))
+      .select("id")
+      .eq("email", email)
+      .single();
+
+    if (existingParent) {
+      return {
+        success: false,
+        error: "An account with this email already exists. Please log in instead."
+      };
+    }
+
+    // Create new parent
+    const { data: newParent, error: parentError } = await db(supabase.from("parents"))
+      .insert({
+        email: email,
+        name: parentName.trim()
+      })
+      .select("id")
+      .single();
+
+    if (parentError || !newParent) {
+      console.error("Parent creation error:", parentError);
+      return { success: false, error: "Failed to create account. Please try again." };
+    }
+
+    // Create new kid
+    const { data: newKid, error: kidError } = await db(supabase.from("kids"))
+      .insert({
+        parent_id: newParent.id,
+        name: kidName.trim(),
+        grade_id: gradeId,
+      })
+      .select("id")
+      .single();
+
+    if (kidError || !newKid) {
+      console.error("Kid creation error:", kidError);
+      // Try to clean up parent
+      await db(supabase.from("parents")).delete().eq("id", newParent.id);
+      return { success: false, error: "Failed to create child profile. Please try again." };
+    }
+
+    // Initialize gamification stats for new kid
+    const { error: gamificationError } = await db(supabase.from("kid_gamification")).insert({
+      kid_id: newKid.id,
+      xp: 0,
+      level: 1,
+      streak: 0,
+      tasks_completed: 0,
+    });
+
+    if (gamificationError) {
+      console.error("Gamification init error:", gamificationError);
+      // Non-fatal, continue
+    }
+
+    // Store kid_id in cookie for session
+    const cookieStore = await cookies();
+    cookieStore.set("kid_id", newKid.id, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+    });
+
+    return { success: true, kidId: newKid.id };
+  } catch (error) {
+    console.error("Signup error:", error);
     return { success: false, error: "An unexpected error occurred" };
   }
 }
@@ -145,6 +233,24 @@ export async function getCurrentKid(): Promise<KidWithRelations | null> {
   }
 
   return kid as KidWithRelations;
+}
+
+/**
+ * Get current parent info
+ */
+export async function getCurrentParent() {
+  const kid = await getCurrentKid();
+  if (!kid || !kid.parent_id) {
+    return null;
+  }
+
+  const supabase = await createClient();
+  const { data: parent } = await db(supabase.from("parents"))
+    .select("*")
+    .eq("id", kid.parent_id)
+    .single();
+
+  return parent;
 }
 
 /**
