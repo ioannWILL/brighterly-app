@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient as createBrowserClient } from "@supabase/supabase-js";
 
 // Helper to bypass strict Supabase type checking
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -10,9 +10,21 @@ const db = (table: any) => table as any;
  * GET /api/seed-badges
  *
  * This will upsert badges, adding new ones without affecting existing ones
+ * Uses service role key to bypass RLS
  */
 export async function GET() {
-  const supabase = await createClient();
+  // Use service role key to bypass RLS for admin operations
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+  if (!serviceRoleKey) {
+    return NextResponse.json(
+      { error: "Service role key not configured" },
+      { status: 500 }
+    );
+  }
+
+  const supabase = createBrowserClient(supabaseUrl, serviceRoleKey);
 
   try {
     // Define all badges
