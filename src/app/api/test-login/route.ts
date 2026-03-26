@@ -52,24 +52,45 @@ export async function GET() {
       });
     }
 
-    // Test 4: Try to set a cookie
+    // Test 4: Create gamification record for the kid
+    const { error: gamificationError } = await db(supabase.from("kid_gamification"))
+      .insert({
+        kid_id: kid.id,
+        xp: 0,
+        streak: 0,
+      });
+
+    if (gamificationError) {
+      // Clean up on failure
+      await db(supabase.from("kids")).delete().eq("id", kid.id);
+      await db(supabase.from("parents")).delete().eq("id", parent.id);
+      return NextResponse.json({
+        error: "Failed to create gamification",
+        details: gamificationError,
+      });
+    }
+
+    // Test 5: Set the kid_id cookie to create a valid session
     const cookieStore = await cookies();
-    cookieStore.set("test_cookie", "test_value", {
+    cookieStore.set("kid_id", kid.id, {
       httpOnly: true,
-      maxAge: 60,
+      maxAge: 60 * 60 * 24, // 24 hours
+      path: "/",
     });
 
-    // Clean up test data
-    await db(supabase.from("kids")).delete().eq("id", kid.id);
-    await db(supabase.from("parents")).delete().eq("id", parent.id);
+    // Note: NOT deleting test data so dashboard can be tested
+    // To clean up, call /api/reset
 
     return NextResponse.json({
       success: true,
-      message: "All tests passed!",
+      message: "Test session created! You can now visit /kid to test the dashboard.",
+      kidId: kid.id,
+      redirectTo: "/kid",
       tests: {
         dbConnection: true,
         createParent: true,
         createKid: true,
+        createGamification: true,
         setCookie: true
       }
     });
