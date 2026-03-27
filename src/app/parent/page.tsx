@@ -8,26 +8,28 @@ import { SkillsProgressGraph } from "@/components/parent/skills-progress-graph";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = (table: any) => table as any;
 
-interface LessonProgress {
-  id: string;
-  name: string;
-  isCompleted: boolean;
-  completedAt: string | null;
-  isRecent: boolean;
-}
-
-interface SkillProgress {
+interface SkillStatus {
   id: string;
   name: string;
   description: string | null;
-  lessons: LessonProgress[];
+  ccssCode: string | null;
+  status: "not_started" | "completed" | "recent"; // recent = completed in last 7 days
+  completedAt: string | null;
+}
+
+interface DomainProgress {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  skills: SkillStatus[];
 }
 
 interface DisciplineProgress {
   id: string;
   name: string;
   displayName: string;
-  skills: SkillProgress[];
+  domains: DomainProgress[];
 }
 
 /**
@@ -64,13 +66,32 @@ export default async function ParentDashboard() {
     }
   }
 
-  // Get skills progress data for the graph
+  // Get skills progress data for the graph (full curriculum with domains)
   let disciplinesProgress: DisciplineProgress[] = [];
   if (kid) {
     const simDate = await getSimulationDate();
     const sevenDaysAgo = new Date(simDate);
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const sevenDaysAgoStr = sevenDaysAgo.toISOString();
+
+    // Get all completed tasks for this kid to determine skill completion
+    const { data: completedTasks } = await db(supabase.from("daily_tasks"))
+      .select("discipline_id, completed_at")
+      .eq("kid_id", kid.id)
+      .eq("is_completed", true);
+
+    // Create a map of discipline_id -> latest completion date
+    const completionMap = new Map<string, string>();
+    if (completedTasks) {
+      for (const task of completedTasks) {
+        if (task.discipline_id && task.completed_at) {
+          const existing = completionMap.get(task.discipline_id);
+          if (!existing || task.completed_at > existing) {
+            completionMap.set(task.discipline_id, task.completed_at);
+          }
+        }
+      }
+    }
 
     // Get all disciplines
     const { data: disciplines } = await db(supabase.from("disciplines"))
@@ -79,76 +100,110 @@ export default async function ParentDashboard() {
 
     if (disciplines) {
       for (const disc of disciplines) {
-        // Get skills for this discipline and kid's grade
-        const { data: skills } = await db(supabase.from("skills"))
-          .select("id, name, description, sort_order")
+        // Get domains for this discipline
+        const { data: domains } = await db(supabase.from("curriculum_domains"))
+          .select("id, code, name, description, sort_order")
           .eq("discipline_id", disc.id)
-          .eq("grade_id", kid.grade_id)
           .order("sort_order");
 
-        if (skills && skills.length > 0) {
-          const skillsWithLessons: SkillProgress[] = [];
+        const domainsWithSkills: DomainProgress[] = [];
 
-          for (const skill of skills) {
-            // Get lessons for this skill
-            const { data: lessons } = await db(supabase.from("lessons"))
-              .select("id, name, sort_order")
-              .eq("skill_id", skill.id)
+        if (domains && domains.length > 0) {
+          for (const domain of domains) {
+            // Get skills for this domain and kid's grade
+            const { data: skills } = await db(supabase.from("skills"))
+              .select("id, name, description, ccss_code, sort_order")
+              .eq("domain_id", domain.id)
+              .eq("grade_id", kid.grade_id)
               .order("sort_order");
 
-            if (lessons && lessons.length > 0) {
-              // Get completed tasks for these lessons
-              const lessonIds = lessons.map((l: { id: string }) => l.id);
-              const { data: completedTasks } = await db(supabase.from("daily_tasks"))
-                .select("lesson_id, completed_at")
-                .eq("kid_id", kid.id)
-                .eq("is_completed", true)
-                .in("lesson_id", lessonIds);
+            if (skills && skills.length > 0) {
+              // Get skill progress for this kid
+              const { data: skillProgressData } = await db(supabase.from("skill_progress"))
+                .select("skill_id, state, last_practiced_at")
+                .eq("kid_id", kid.id);
 
-              const completedMap = new Map<string, string>();
-              if (completedTasks) {
-                for (const task of completedTasks) {
-                  if (task.lesson_id && task.completed_at) {
-                    // Keep the most recent completion
-                    const existing = completedMap.get(task.lesson_id);
-                    if (!existing || task.completed_at > existing) {
-                      completedMap.set(task.lesson_id, task.completed_at);
-                    }
+              const progressMap = new Map<string, { state: string; lastPracticed: string | null }>();
+              if (skillProgressData) {
+                for (const sp of skillProgressData) {
+                  if (sp.skill_id) {
+                    progressMap.set(sp.skill_id, {
+                      state: sp.state,
+                      lastPracticed: sp.last_practiced_at,
+                    });
                   }
                 }
               }
 
-              const lessonsProgress: LessonProgress[] = lessons.map((lesson: { id: string; name: string }) => {
-                const completedAt = completedMap.get(lesson.id) || null;
-                const isCompleted = !!completedAt;
-                const isRecent = completedAt ? completedAt >= sevenDaysAgoStr : false;
+              const skillsWithStatus: SkillStatus[] = skills.map((skill: { id: string; name: string; description: string | null; ccss_code: string | null }) => {
+                const progress = progressMap.get(skill.id);
+                let status: "not_started" | "completed" | "recent" = "not_started";
+                let completedAt: string | null = null;
+
+                if (progress) {
+                  completedAt = progress.lastPracticed;
+                  if (completedAt && completedAt >= sevenDaysAgoStr) {
+                    status = "recent";
+                  } else {
+                    status = "completed";
+                  }
+                }
 
                 return {
-                  id: lesson.id,
-                  name: lesson.name,
-                  isCompleted,
+                  id: skill.id,
+                  name: skill.name,
+                  description: skill.description,
+                  ccssCode: skill.ccss_code,
+                  status,
                   completedAt,
-                  isRecent,
                 };
               });
 
-              skillsWithLessons.push({
-                id: skill.id,
-                name: skill.name,
-                description: skill.description,
-                lessons: lessonsProgress,
+              domainsWithSkills.push({
+                id: domain.id,
+                code: domain.code,
+                name: domain.name,
+                description: domain.description,
+                skills: skillsWithStatus,
               });
             }
           }
+        }
 
-          if (skillsWithLessons.length > 0) {
-            disciplinesProgress.push({
-              id: disc.id,
-              name: disc.name,
-              displayName: disc.display_name,
-              skills: skillsWithLessons,
-            });
-          }
+        // Also check for skills without domains (legacy data)
+        const { data: legacySkills } = await db(supabase.from("skills"))
+          .select("id, name, description, ccss_code, sort_order")
+          .eq("discipline_id", disc.id)
+          .eq("grade_id", kid.grade_id)
+          .is("domain_id", null)
+          .order("sort_order");
+
+        if (legacySkills && legacySkills.length > 0) {
+          const skillsWithStatus: SkillStatus[] = legacySkills.map((skill: { id: string; name: string; description: string | null; ccss_code: string | null }) => ({
+            id: skill.id,
+            name: skill.name,
+            description: skill.description,
+            ccssCode: skill.ccss_code,
+            status: "not_started" as const,
+            completedAt: null,
+          }));
+
+          domainsWithSkills.unshift({
+            id: "legacy",
+            code: "GEN",
+            name: "General Skills",
+            description: "Skills not yet categorized",
+            skills: skillsWithStatus,
+          });
+        }
+
+        if (domainsWithSkills.length > 0) {
+          disciplinesProgress.push({
+            id: disc.id,
+            name: disc.name,
+            displayName: disc.display_name,
+            domains: domainsWithSkills,
+          });
         }
       }
     }
