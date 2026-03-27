@@ -2,13 +2,23 @@
 
 import { useState } from "react";
 
+interface LessonStatus {
+  id: string;
+  name: string;
+  isCompleted: boolean;
+  isRecent: boolean;
+  completedAt: string | null;
+}
+
 interface SkillStatus {
   id: string;
   name: string;
   description: string | null;
   ccssCode: string | null;
-  status: "not_started" | "completed" | "recent";
-  completedAt: string | null;
+  status: "not_started" | "in_progress" | "completed" | "recent";
+  lessons: LessonStatus[];
+  completedLessons: number;
+  totalLessons: number;
 }
 
 interface DomainProgress {
@@ -33,6 +43,7 @@ interface SkillsProgressGraphProps {
 /**
  * Skills Progress Graph Component
  * Shows full skill tree with domains per discipline
+ * Displays lesson progress with filled/empty stars
  */
 export function SkillsProgressGraph({ disciplines }: SkillsProgressGraphProps) {
   const [expandedDomains, setExpandedDomains] = useState<Set<string>>(new Set());
@@ -66,14 +77,18 @@ export function SkillsProgressGraph({ disciplines }: SkillsProgressGraphProps) {
       {disciplines.map((discipline) => {
         const totalSkills = discipline.domains.reduce((sum, d) => sum + d.skills.length, 0);
         const completedSkills = discipline.domains.reduce(
-          (sum, d) => sum + d.skills.filter((s) => s.status !== "not_started").length,
+          (sum, d) => sum + d.skills.filter((s) => s.status === "completed" || s.status === "recent").length,
+          0
+        );
+        const inProgressSkills = discipline.domains.reduce(
+          (sum, d) => sum + d.skills.filter((s) => s.status === "in_progress").length,
           0
         );
         const recentSkills = discipline.domains.reduce(
           (sum, d) => sum + d.skills.filter((s) => s.status === "recent").length,
           0
         );
-        const progressPercent = totalSkills > 0 ? (completedSkills / totalSkills) * 100 : 0;
+        const progressPercent = totalSkills > 0 ? ((completedSkills + inProgressSkills * 0.5) / totalSkills) * 100 : 0;
         const isMath = discipline.name === 'math';
         const primaryColor = isMath ? '#6679dd' : '#4CAF50';
 
@@ -95,8 +110,13 @@ export function SkillsProgressGraph({ disciplines }: SkillsProgressGraphProps) {
               </h4>
               <div style={{ textAlign: 'right' }}>
                 <span style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>
-                  {completedSkills}/{totalSkills} skills
+                  {completedSkills}/{totalSkills} skills mastered
                 </span>
+                {inProgressSkills > 0 && (
+                  <span style={{ fontSize: 12, color: '#f59e0b', marginLeft: 8 }}>
+                    ({inProgressSkills} in progress)
+                  </span>
+                )}
                 {recentSkills > 0 && (
                   <span style={{ fontSize: 12, color: primaryColor, marginLeft: 8 }}>
                     ({recentSkills} this week)
@@ -129,10 +149,11 @@ export function SkillsProgressGraph({ disciplines }: SkillsProgressGraphProps) {
             {/* Domains List */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {discipline.domains.map((domain) => {
-                const domainCompleted = domain.skills.filter((s) => s.status !== "not_started").length;
+                const domainCompleted = domain.skills.filter((s) => s.status === "completed" || s.status === "recent").length;
+                const domainInProgress = domain.skills.filter((s) => s.status === "in_progress").length;
                 const domainRecent = domain.skills.filter((s) => s.status === "recent").length;
                 const domainTotal = domain.skills.length;
-                const domainProgress = domainTotal > 0 ? (domainCompleted / domainTotal) * 100 : 0;
+                const domainProgress = domainTotal > 0 ? ((domainCompleted + domainInProgress * 0.5) / domainTotal) * 100 : 0;
                 const isExpanded = expandedDomains.has(domain.id);
 
                 return (
@@ -166,14 +187,14 @@ export function SkillsProgressGraph({ disciplines }: SkillsProgressGraphProps) {
                         width: 44,
                         height: 44,
                         borderRadius: 10,
-                        background: domainProgress === 100 ? '#f0fdf4' : (domainProgress > 0 ? '#f0f4ff' : '#f8fafc'),
-                        border: `2px solid ${domainProgress === 100 ? '#4CAF50' : (domainProgress > 0 ? primaryColor : '#e5e7eb')}`,
+                        background: domainCompleted === domainTotal ? '#f0fdf4' : (domainProgress > 0 ? '#f0f4ff' : '#f8fafc'),
+                        border: `2px solid ${domainCompleted === domainTotal ? '#4CAF50' : (domainProgress > 0 ? primaryColor : '#e5e7eb')}`,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         fontWeight: 700,
                         fontSize: 14,
-                        color: domainProgress === 100 ? '#4CAF50' : (domainProgress > 0 ? primaryColor : '#9ca3af')
+                        color: domainCompleted === domainTotal ? '#4CAF50' : (domainProgress > 0 ? primaryColor : '#9ca3af')
                       }}>
                         {domain.code}
                       </div>
@@ -185,6 +206,11 @@ export function SkillsProgressGraph({ disciplines }: SkillsProgressGraphProps) {
                         </div>
                         <div style={{ fontSize: 12, color: '#64748b' }}>
                           {domainCompleted}/{domainTotal} skills
+                          {domainInProgress > 0 && (
+                            <span style={{ color: '#f59e0b', marginLeft: 6 }}>
+                              • {domainInProgress} in progress
+                            </span>
+                          )}
                           {domainRecent > 0 && (
                             <span style={{ color: primaryColor, marginLeft: 6 }}>
                               • {domainRecent} recent
@@ -206,7 +232,7 @@ export function SkillsProgressGraph({ disciplines }: SkillsProgressGraphProps) {
                           <div style={{
                             height: '100%',
                             width: `${domainProgress}%`,
-                            background: domainProgress === 100 ? '#4CAF50' : primaryColor,
+                            background: domainCompleted === domainTotal ? '#4CAF50' : primaryColor,
                             borderRadius: 3
                           }}></div>
                         </div>
@@ -223,7 +249,7 @@ export function SkillsProgressGraph({ disciplines }: SkillsProgressGraphProps) {
                     {isExpanded && (
                       <div style={{ padding: '0 16px 16px', borderTop: '1px solid #e5e7eb' }}>
                         <div style={{ paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          {domain.skills.map((skill, idx) => {
+                          {domain.skills.map((skill) => {
                             let statusColor = '#e5e7eb';
                             let statusBg = '#f8fafc';
                             let statusIcon = 'far fa-circle';
@@ -232,13 +258,18 @@ export function SkillsProgressGraph({ disciplines }: SkillsProgressGraphProps) {
                             if (skill.status === 'recent') {
                               statusColor = primaryColor;
                               statusBg = isMath ? '#f0f4ff' : '#f0fdf4';
-                              statusIcon = 'fas fa-star';
-                              statusText = 'Completed recently';
+                              statusIcon = 'fas fa-check-circle';
+                              statusText = 'Mastered recently';
                             } else if (skill.status === 'completed') {
                               statusColor = '#9ca3af';
                               statusBg = '#f1f5f9';
                               statusIcon = 'fas fa-check-circle';
-                              statusText = 'Completed';
+                              statusText = 'Mastered';
+                            } else if (skill.status === 'in_progress') {
+                              statusColor = '#f59e0b';
+                              statusBg = '#fffbeb';
+                              statusIcon = 'fas fa-spinner';
+                              statusText = 'In progress';
                             }
 
                             return (
@@ -279,6 +310,58 @@ export function SkillsProgressGraph({ disciplines }: SkillsProgressGraphProps) {
                                       {skill.description}
                                     </div>
                                   )}
+
+                                  {/* Lesson Stars */}
+                                  {skill.totalLessons > 0 && (
+                                    <div style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 4,
+                                      marginTop: 8,
+                                      flexWrap: 'wrap'
+                                    }}>
+                                      <span style={{ fontSize: 11, color: '#9ca3af', marginRight: 4 }}>
+                                        Lessons:
+                                      </span>
+                                      {skill.lessons.map((lesson, idx) => {
+                                        let starColor = '#d1d5db'; // empty star (gray)
+                                        let starIcon = 'far fa-star'; // outline star
+
+                                        if (lesson.isCompleted) {
+                                          if (lesson.isRecent) {
+                                            // Recent completion - bright star
+                                            starColor = '#facc15'; // bright yellow
+                                            starIcon = 'fas fa-star';
+                                          } else {
+                                            // Older completion - muted star
+                                            starColor = '#9ca3af'; // gray
+                                            starIcon = 'fas fa-star';
+                                          }
+                                        }
+
+                                        return (
+                                          <i
+                                            key={lesson.id}
+                                            className={starIcon}
+                                            title={`${lesson.name}${lesson.isCompleted ? (lesson.isRecent ? ' (completed recently)' : ' (completed)') : ''}`}
+                                            style={{
+                                              fontSize: 14,
+                                              color: starColor,
+                                              cursor: 'help'
+                                            }}
+                                          ></i>
+                                        );
+                                      })}
+                                      <span style={{
+                                        fontSize: 11,
+                                        color: '#64748b',
+                                        marginLeft: 6
+                                      }}>
+                                        {skill.completedLessons}/{skill.totalLessons}
+                                      </span>
+                                    </div>
+                                  )}
+
                                   {skill.ccssCode && (
                                     <div style={{
                                       fontSize: 11,
@@ -297,8 +380,12 @@ export function SkillsProgressGraph({ disciplines }: SkillsProgressGraphProps) {
                                   fontWeight: 600,
                                   padding: '3px 8px',
                                   borderRadius: 10,
-                                  background: skill.status === 'recent' ? primaryColor : (skill.status === 'completed' ? '#d1d5db' : '#e5e7eb'),
-                                  color: skill.status === 'recent' ? '#fff' : (skill.status === 'completed' ? '#4b5563' : '#9ca3af'),
+                                  background: skill.status === 'recent' ? primaryColor :
+                                             skill.status === 'completed' ? '#d1d5db' :
+                                             skill.status === 'in_progress' ? '#fef3c7' : '#e5e7eb',
+                                  color: skill.status === 'recent' ? '#fff' :
+                                         skill.status === 'completed' ? '#4b5563' :
+                                         skill.status === 'in_progress' ? '#92400e' : '#9ca3af',
                                   whiteSpace: 'nowrap'
                                 }}>
                                   {statusText}
@@ -318,22 +405,23 @@ export function SkillsProgressGraph({ disciplines }: SkillsProgressGraphProps) {
             <div style={{
               marginTop: 16,
               display: 'flex',
-              gap: 20,
+              gap: 16,
               fontSize: 12,
               color: '#64748b',
-              justifyContent: 'flex-end'
+              justifyContent: 'flex-end',
+              flexWrap: 'wrap'
             }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <i className="fas fa-star" style={{ color: primaryColor }}></i>
-                Completed recently (last 7 days)
+                <i className="fas fa-star" style={{ color: '#facc15' }}></i>
+                Lesson completed recently
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <i className="fas fa-check-circle" style={{ color: '#9ca3af' }}></i>
-                Completed earlier
+                <i className="fas fa-star" style={{ color: '#9ca3af' }}></i>
+                Lesson completed earlier
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <i className="far fa-circle" style={{ color: '#d1d5db' }}></i>
-                Not started
+                <i className="far fa-star" style={{ color: '#d1d5db' }}></i>
+                Lesson not started
               </span>
             </div>
           </div>
