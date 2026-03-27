@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 
 // Helper to bypass strict Supabase type checking
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const force = searchParams.get("force") === "true";
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   try {
     // Check if already seeded (unless force=true)

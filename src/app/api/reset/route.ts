@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 
 // Helper to bypass strict Supabase type checking
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -12,7 +12,7 @@ const db = (table: any) => table as any;
  * WARNING: This deletes ALL data! Use only for development.
  */
 export async function GET() {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   try {
     // Delete in order to respect foreign key constraints
