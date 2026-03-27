@@ -10,13 +10,14 @@ export async function GET() {
   const supabase = await createClient();
 
   try {
-    // Test 1: Check if we can connect to Supabase
+    // Test 1: Check if we can connect to Supabase - use Grade 3 (G3) which has curriculum seeded
     const { data: grades, error: gradesError } = await db(supabase.from("grades"))
       .select("id, name")
+      .eq("name", "G3")
       .limit(1);
 
-    if (gradesError) {
-      return NextResponse.json({ error: "DB connection failed", details: gradesError });
+    if (gradesError || !grades || grades.length === 0) {
+      return NextResponse.json({ error: "DB connection failed or G3 grade not found", details: gradesError });
     }
 
     // Test 2: Try to create a test parent
