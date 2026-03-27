@@ -10,7 +10,10 @@
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "supabase:generate": "supabase gen types typescript --local > src/lib/supabase/types.ts",
-    "supabase:push": "supabase db push"
+    "supabase:push": "supabase db push",
+    "curriculum:sql": "npx ts-node --project scripts/tsconfig.json scripts/curriculum/generate-curriculum-sql.ts",
+    "curriculum:questions": "npx ts-node --project scripts/tsconfig.json scripts/curriculum/question-generator.ts",
+    "curriculum:info": "npx ts-node --project scripts/tsconfig.json scripts/curriculum/index.ts"
   },
   "dependencies": {
     "react": "^19.0.0",
@@ -24,6 +27,8 @@
     "lucide-react": "^0.475.0"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "ts-node": "^10.9.0",
     "typescript": "^5.7.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
