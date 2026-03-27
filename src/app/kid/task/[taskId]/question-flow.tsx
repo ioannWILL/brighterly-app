@@ -161,11 +161,11 @@ export function QuestionFlow({
       const result = await completeAttempt(attemptId, correctCount);
 
       if (result.isSuccessful) {
-        // Add newBadges=check to trigger badge celebration check
+        // Add newBadges=check to trigger badge celebration check (only on success)
         window.location.href = `/kid/results/${taskId}?newBadges=check`;
       } else {
-        // Even on retry, we might have earned a "Retry" badge
-        window.location.href = `/kid/results/${taskId}?retry=true&newBadges=check`;
+        // Don't check for badges on failure - prevents showing old badges
+        window.location.href = `/kid/results/${taskId}?retry=true`;
       }
     } else {
       setCurrentIndex((i) => i + 1);

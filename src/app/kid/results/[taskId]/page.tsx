@@ -87,10 +87,11 @@ export default async function ResultsPage({
 
   const isMath = task.discipline?.name === "math";
 
-  // Get recently earned badges (earned in the last 30 seconds)
+  // Get recently earned badges (only on successful completion)
   let earnedBadges: EarnedBadge[] = [];
 
-  if (newBadges === "check") {
+  // Only check for badges if task was completed successfully
+  if (newBadges === "check" && task.is_completed) {
     const sixtySecondsAgo = new Date(Date.now() - 60000).toISOString();
 
     const { data: recentBadges } = await db(supabase.from("kid_badges"))
