@@ -8,18 +8,24 @@ const db = (table: any) => table as any;
 /**
  * API Route to seed the database with initial data
  * GET /api/seed
+ * GET /api/seed?force=true - Skip "already seeded" check
  */
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const force = searchParams.get("force") === "true";
+
   const supabase = await createClient();
 
   try {
-    // Check if already seeded
-    const { data: existingGrades } = await db(supabase.from("grades"))
-      .select("id")
-      .limit(1);
+    // Check if already seeded (unless force=true)
+    if (!force) {
+      const { data: existingGrades } = await db(supabase.from("grades"))
+        .select("id")
+        .limit(1);
 
-    if (existingGrades && existingGrades.length > 0) {
-      return NextResponse.json({ message: "Database already seeded", seeded: false });
+      if (existingGrades && existingGrades.length > 0) {
+        return NextResponse.json({ message: "Database already seeded", seeded: false });
+      }
     }
 
     // Seed disciplines
