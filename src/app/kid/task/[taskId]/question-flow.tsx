@@ -161,9 +161,11 @@ export function QuestionFlow({
       const result = await completeAttempt(attemptId, correctCount);
 
       if (result.isSuccessful) {
-        window.location.href = `/kid/results/${taskId}`;
+        // Add newBadges=check to trigger badge celebration check
+        window.location.href = `/kid/results/${taskId}?newBadges=check`;
       } else {
-        window.location.href = `/kid/results/${taskId}?retry=true`;
+        // Even on retry, we might have earned a "Retry" badge
+        window.location.href = `/kid/results/${taskId}?retry=true&newBadges=check`;
       }
     } else {
       setCurrentIndex((i) => i + 1);

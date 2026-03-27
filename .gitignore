@@ -41,3 +41,8 @@ next-env.d.ts
 
 # Supabase
 .supabase
+
+# Supabase temp files
+supabase/.branches/
+supabase/.temp/
+supabase/seeds/question-generation-progress.json

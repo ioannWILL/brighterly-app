@@ -80,7 +80,7 @@ export default async function ParentDashboard() {
             <Link href="/kid" style={{ color: 'var(--color-primary)', textDecoration: 'none', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
               <i className="fas fa-arrow-left"></i> Back to Kid View
             </Link>
-            <h1 style={{ fontSize: 32, marginBottom: 10 }}>Parent Dashboard</h1>
+            <h1 style={{ fontSize: 32, fontWeight: 800, color: '#1e293b', marginBottom: 10 }}>Parent Dashboard</h1>
             <p style={{ color: 'var(--color-text-gray)' }}>
               {parent ? `Welcome, ${parent.name || 'Parent'}!` : ''} Track your child&apos;s learning progress.
             </p>
@@ -96,7 +96,7 @@ export default async function ParentDashboard() {
                     {kid.name.charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <h2 style={{ fontSize: 20, marginBottom: 5 }}>{kid.name}</h2>
+                    <h2 style={{ fontSize: 24, fontWeight: 800, color: '#1e293b', marginBottom: 5 }}>{kid.name}</h2>
                     <p style={{ color: 'var(--color-text-gray)', fontSize: 14 }}>
                       Level {stats.level} • {stats.xp} XP
                     </p>
@@ -119,23 +119,23 @@ export default async function ParentDashboard() {
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
                     <div style={{ textAlign: 'center', padding: 20, background: '#f8fafc', borderRadius: 12 }}>
-                      <div style={{ fontSize: 28, fontWeight: 700, color: '#facc15' }}>{stats.xp}</div>
-                      <div style={{ fontSize: 13, color: 'var(--color-text-gray)' }}>Total XP</div>
+                      <div style={{ fontSize: 32, fontWeight: 800, color: '#facc15' }}>{stats.xp}</div>
+                      <div style={{ fontSize: 13, color: 'var(--color-text-gray)', fontWeight: 600 }}>Total XP</div>
                     </div>
                     <div style={{ textAlign: 'center', padding: 20, background: '#f8fafc', borderRadius: 12 }}>
-                      <div style={{ fontSize: 28, fontWeight: 700, color: '#8b5cf6' }}>{stats.level}</div>
-                      <div style={{ fontSize: 13, color: 'var(--color-text-gray)' }}>Current Level</div>
+                      <div style={{ fontSize: 32, fontWeight: 800, color: '#8b5cf6' }}>{stats.level}</div>
+                      <div style={{ fontSize: 13, color: 'var(--color-text-gray)', fontWeight: 600 }}>Current Level</div>
                     </div>
                     <div style={{ textAlign: 'center', padding: 20, background: '#f8fafc', borderRadius: 12 }}>
-                      <div style={{ fontSize: 28, fontWeight: 700, color: '#3b82f6' }}>{stats.tasks_completed}</div>
-                      <div style={{ fontSize: 13, color: 'var(--color-text-gray)' }}>Tasks Completed</div>
+                      <div style={{ fontSize: 32, fontWeight: 800, color: '#3b82f6' }}>{stats.tasks_completed}</div>
+                      <div style={{ fontSize: 13, color: 'var(--color-text-gray)', fontWeight: 600 }}>Tasks Completed</div>
                     </div>
                   </div>
                 </div>
 
                 {/* Learning Insights */}
                 <div className="card" style={{ padding: 30 }}>
-                  <h3 style={{ fontWeight: 600, marginBottom: 20 }}>
+                  <h3 style={{ fontWeight: 800, fontSize: 18, color: '#1e293b', marginBottom: 20 }}>
                     <i className="fas fa-lightbulb" style={{ marginRight: 10, color: '#f59e0b' }}></i>
                     Learning Insights
                   </h3>
@@ -166,7 +166,7 @@ export default async function ParentDashboard() {
               <div className="sidebar-column">
                 {/* Account Info */}
                 <div className="card" style={{ padding: 24 }}>
-                  <h3 style={{ fontWeight: 600, marginBottom: 15 }}>
+                  <h3 style={{ fontWeight: 800, fontSize: 16, color: '#1e293b', marginBottom: 15 }}>
                     <i className="fas fa-user-circle" style={{ marginRight: 10, color: 'var(--color-primary)' }}></i>
                     Account Info
                   </h3>
@@ -209,10 +209,9 @@ export default async function ParentDashboard() {
                   )}
                 </div>
 
-                {/* Conversation Starters */}
                 <div className="card" style={{ padding: 24 }}>
-                  <h3 style={{ fontWeight: 600, marginBottom: 15 }}>
-                    <i className="fas fa-comment" style={{ marginRight: 10, color: 'var(--color-primary)' }}></i>
+                  <h3 style={{ fontWeight: 800, fontSize: 16, color: '#1e293b', marginBottom: 15 }}>
+                     <i className="fas fa-comment" style={{ marginRight: 10, color: 'var(--color-primary)' }}></i>
                     Conversation Starters
                   </h3>
                   <p style={{ color: 'var(--color-text-gray)', fontSize: 14, marginBottom: 20 }}>

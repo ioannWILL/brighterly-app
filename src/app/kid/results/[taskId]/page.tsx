@@ -3,6 +3,11 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentKid } from "@/lib/actions/auth";
 import type { TaskAttempt, AttemptAnswer, Question, DailyTask, Discipline } from "@/lib/supabase/types";
+import BadgeCelebration from "@/components/kid/badge-celebration";
+
+// Helper to bypass strict Supabase type checking
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = (table: any) => table as any;
 
 interface AttemptWithAnswers extends TaskAttempt {
   answers: (AttemptAnswer & { question: Question | null })[] | null;
@@ -12,9 +17,15 @@ interface TaskWithDiscipline extends DailyTask {
   discipline: Discipline | null;
 }
 
+interface EarnedBadge {
+  name: string;
+  description: string;
+  icon: string;
+}
+
 interface ResultsPageProps {
   params: Promise<{ taskId: string }>;
-  searchParams: Promise<{ retry?: string }>;
+  searchParams: Promise<{ retry?: string; newBadges?: string }>;
 }
 
 /**
@@ -27,7 +38,7 @@ export default async function ResultsPage({
   searchParams,
 }: ResultsPageProps) {
   const { taskId } = await params;
-  const { retry } = await searchParams;
+  const { retry, newBadges } = await searchParams;
   const kid = await getCurrentKid();
 
   if (!kid) {
@@ -76,8 +87,36 @@ export default async function ResultsPage({
 
   const isMath = task.discipline?.name === "math";
 
+  // Get recently earned badges (earned in the last 30 seconds)
+  let earnedBadges: EarnedBadge[] = [];
+
+  if (newBadges === "check") {
+    const sixtySecondsAgo = new Date(Date.now() - 60000).toISOString();
+
+    const { data: recentBadges } = await db(supabase.from("kid_badges"))
+      .select(`
+        earned_at,
+        badge:badges(name, description, icon)
+      `)
+      .eq("kid_id", kid.id)
+      .gte("earned_at", sixtySecondsAgo);
+
+    if (recentBadges) {
+      earnedBadges = recentBadges
+        .filter((b: any) => b.badge)
+        .map((b: any) => ({
+          name: b.badge.name,
+          description: b.badge.description,
+          icon: b.badge.icon,
+        }));
+    }
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-bg-light)' }}>
+      {/* Badge Celebration Modal */}
+      <BadgeCelebration badges={earnedBadges} />
+
       {/* Navbar */}
       <header className="navbar">
         <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

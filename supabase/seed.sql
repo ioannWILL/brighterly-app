@@ -34,8 +34,12 @@ INSERT INTO badges (name, description, icon, criteria) VALUES
   ('streak_7', '7-Day Streak', '🔥', '{"type": "streak", "value": 7}'),
   ('first_task', 'First Task Complete', '⭐', '{"type": "tasks_completed", "value": 1}'),
   ('ten_tasks', '10 Tasks Complete', '🏆', '{"type": "tasks_completed", "value": 10}'),
-  ('perfect_attempt', 'Perfect Score', '💯', '{"type": "perfect_attempt", "value": true}'),
-  ('level_5', 'Level 5 Reached', '🎖️', '{"type": "level", "value": 5}');
+  ('perfect_score', 'Perfect Score', '💯', '{"type": "perfect_attempt", "value": true}'),
+  ('level_1', 'Level 1 Reached', '🌱', '{"type": "level", "value": 1}'),
+  ('level_5', 'Level 5 Reached', '🎖️', '{"type": "level", "value": 5}'),
+  ('level_10', 'Level 10 Reached', '👑', '{"type": "level", "value": 10}'),
+  ('retry_1', 'First Retry', '💪', '{"type": "retry", "value": 1}'),
+  ('retry_3', 'Persistence pays off', '🎯', '{"type": "retry", "value": 3}');
 
 --------------------------------------------------------------------------------
 -- GRADE 3 MATH SKILLS

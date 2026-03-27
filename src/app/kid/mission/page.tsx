@@ -4,6 +4,11 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentKid } from "@/lib/actions/auth";
 import { getOrCreateDailyTasks } from "@/lib/actions/tasks";
 import { getSimulationDate, advanceSimulationDay } from "@/lib/actions/simulation";
+import NextDayButton from "@/components/common/next-day-button";
+
+// Helper to bypass strict Supabase type checking
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = (table: any) => table as any;
 
 /**
  * Mission Page (Server Component)
@@ -43,6 +48,22 @@ export default async function MissionPage() {
   const currentDayIndex = new Date(simulationDate).getDay();
   const adjustedIndex = currentDayIndex === 0 ? 6 : currentDayIndex - 1;
 
+  // Get kid's earned badges
+  const { data: earnedBadges } = await db(supabase.from("kid_badges"))
+    .select("badge_id")
+    .eq("kid_id", kid.id);
+
+  const earnedBadgeIds = new Set((earnedBadges || []).map((b: { badge_id: string }) => b.badge_id));
+
+  // Get all available badges
+  interface BadgeRecord {
+    id: string;
+    name: string;
+    icon: string;
+    description: string;
+  }
+  const { data: allBadges } = await db(supabase.from("badges")).select("*");
+
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
       {/* Navbar */}
@@ -54,22 +75,10 @@ export default async function MissionPage() {
             </Link>
           </div>
 
-          <nav className="nav-links">
-            <a href="#" className="nav-item active">
-              <i className="fas fa-calculator" style={{ fontSize: 14 }}></i> Math
-            </a>
-            <a href="#" className="nav-item">
-              <i className="fas fa-book" style={{ fontSize: 14 }}></i> ELA
-            </a>
-          </nav>
-
           <div className="user-profile">
-            <Link href="/parent" className="nav-item" style={{ fontSize: 13 }}>
-              <i className="fas fa-user-shield"></i>
-              Parent
+            <Link href="/parent" className="nav-item" style={{ fontSize: 13, marginRight: 15 }}>
+              <i className="fas fa-user-shield"></i> Parent Portal
             </Link>
-            <div className="avatar">{kid.name.charAt(0).toUpperCase()}</div>
-            <span className="username">{kid.name}</span>
           </div>
         </div>
       </header>
@@ -78,11 +87,11 @@ export default async function MissionPage() {
         <div className="container mission-container">
           {/* Header */}
           <div className="mission-header">
-            <Link href="/kid" style={{ color: '#6679dd', textDecoration: 'none', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+            <Link href="/kid" style={{ color: '#6679dd', textDecoration: 'none', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
               <i className="fas fa-arrow-left"></i> Back to Dashboard
             </Link>
-            <h1>Hey {kid.name}, let&apos;s crush your tasks today! 🚀</h1>
-            <p>You&apos;re only a few steps away from Level {stats.level + 1}.</p>
+            <h1 style={{ fontSize: 32, fontWeight: 800 }}>Hey {kid.name}, let&apos;s crush your tasks today! 🚀</h1>
+            <p style={{ fontSize: 18, color: '#475569', fontWeight: 600 }}>You&apos;re only a few steps away from Level {stats.level + 1}.</p>
           </div>
 
           <div className="dashboard-grid">
@@ -95,8 +104,8 @@ export default async function MissionPage() {
                     <i className="fas fa-fire"></i>
                   </div>
                   <div>
-                    <h3 style={{ marginBottom: 4, fontWeight: 600 }}>{stats.streak} Day Streak!</h3>
-                    <p style={{ color: '#4b5563', fontSize: 14 }}>
+                    <h3 style={{ fontSize: 20, marginBottom: 4, fontWeight: 800 }}>{stats.streak} Day Streak!</h3>
+                    <p style={{ color: '#475569', fontSize: 15, fontWeight: 600 }}>
                       {stats.streak < 7
                         ? `Finish ${7 - stats.streak} more days to hit your goal.`
                         : "Amazing! Keep it going!"}
@@ -131,23 +140,28 @@ export default async function MissionPage() {
                         <div className="task-check">
                           {task.is_completed && <i className="fas fa-check"></i>}
                         </div>
+                        <img 
+                          src={task.discipline?.name === 'math' ? "/tutors/sarah.png" : "/tutors/jessica.png"} 
+                          alt="Tutor" 
+                          style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }} 
+                        />
                         <div className="task-info">
-                          <h4>
-                            <span className={`task-tag ${(task as { disciplines?: { name: string } }).disciplines?.name === 'math' ? 'tag-math' : 'tag-ela'}`}>
-                              {(task as { disciplines?: { name: string } }).disciplines?.name || 'Task'}
+                          <h4 style={{ fontSize: 18, fontWeight: 800 }}>
+                            <span className={`task-tag ${task.discipline?.name === 'math' ? 'tag-math' : 'tag-ela'}`}>
+                              {task.discipline?.name || 'Task'}
                             </span>
                             {task.task_name}
                           </h4>
-                          <p>Answer 7 questions to complete</p>
+                          <p style={{ fontSize: 14, fontWeight: 500, color: '#64748b' }}>Answer 7 questions to complete</p>
                         </div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <div className="task-xp">+50 XP</div>
+                        <div className="task-xp" style={{ fontWeight: 800 }}>+50 XP</div>
                         {!task.is_completed && (
                           <Link
                             href={`/kid/task/${task.id}`}
                             className="btn btn-yellow"
-                            style={{ padding: '6px 15px', fontSize: 12, marginTop: 5, display: 'inline-block' }}
+                            style={{ padding: '8px 20px', fontSize: 13, fontWeight: 700, marginTop: 8, display: 'inline-block' }}
                           >
                             Start
                           </Link>
@@ -226,37 +240,62 @@ export default async function MissionPage() {
               <div className="stats-grid" style={{ gridTemplateColumns: '1fr', gap: 15 }}>
                 <div className="stat-tile">
                   <i className="fas fa-star xp-icon"></i>
-                  <span className="stat-value">{stats.xp.toLocaleString()}</span>
-                  <span className="stat-label">Total XP</span>
+                  <span className="stat-value" style={{ fontWeight: 800 }}>{stats.xp.toLocaleString()}</span>
+                  <span className="stat-label" style={{ fontWeight: 600 }}>Total XP</span>
                 </div>
                 <div className="stat-tile">
                   <i className="fas fa-shield-alt level-icon"></i>
-                  <span className="stat-value">Level {stats.level}</span>
-                  <span className="stat-label">Current Level</span>
+                  <span className="stat-value" style={{ fontWeight: 800 }}>Level {stats.level}</span>
+                  <span className="stat-label" style={{ fontWeight: 600 }}>Current Level</span>
                 </div>
                 <div className="stat-tile">
                   <i className="fas fa-check-circle tasks-icon"></i>
-                  <span className="stat-value">{stats.tasks_completed}</span>
-                  <span className="stat-label">Tasks Done</span>
+                  <span className="stat-value" style={{ fontWeight: 800 }}>{stats.tasks_completed}</span>
+                  <span className="stat-label" style={{ fontWeight: 600 }}>Tasks Done</span>
                 </div>
               </div>
 
-              {/* Badges Section */}
-              <div className="badges-section">
-                <h3 style={{ fontWeight: 600 }}>Your Achievements</h3>
-                <div className="badges-grid">
-                  <div className={`badge-item ${stats.streak >= 3 ? 'active' : 'inactive'}`}>
-                    <div className="badge-icon"><i className="fas fa-bolt"></i></div>
-                    <span className="badge-name">Speedster</span>
-                  </div>
-                  <div className={`badge-item ${stats.tasks_completed >= 10 ? 'active' : 'inactive'}`}>
-                    <div className="badge-icon"><i className="fas fa-brain"></i></div>
-                    <span className="badge-name">Genius</span>
-                  </div>
-                  <div className={`badge-item ${stats.level >= 5 ? 'active' : 'inactive'}`}>
-                    <div className="badge-icon"><i className="fas fa-trophy"></i></div>
-                    <span className="badge-name">Champion</span>
-                  </div>
+              {/* Badges Card */}
+              <div className="card badges-card" style={{ padding: 24, background: '#fff' }}>
+                <h3 style={{ fontWeight: 600, marginBottom: 20 }}>
+                  <i className="fas fa-medal" style={{ marginRight: 8, color: '#f59e0b' }}></i>
+                  Your Badges
+                </h3>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+                  {(allBadges || [])
+                    .filter((badge: BadgeRecord) => badge.name !== 'perfect_attempt') // Filter legacy badge
+                    .map((badge: BadgeRecord) => {
+                      const isEarned = earnedBadgeIds.has(badge.id);
+                      
+                      // Format technical goal (e.g. level_10 -> Reach Level 10)
+                      let goalText = badge.name;
+                      if (badge.name.startsWith('level_')) {
+                        goalText = `Reach Level ${badge.name.split('_')[1]}`;
+                      } else if (badge.name.startsWith('streak_')) {
+                        goalText = `${badge.name.split('_')[1]}-Day Streak`;
+                      } else {
+                        goalText = badge.name.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                      }
+
+                      return (
+                        <div
+                          key={badge.id}
+                          className={`badge-item ${isEarned ? 'earned' : 'locked'}`}
+                        >
+                          <span>{badge.icon}</span>
+                          <div className="badge-tooltip">
+                            {/* User requested: Title is the Badge Name (description) and goal is the Requirement (name) */}
+                            <div className="badge-tooltip-title">{badge.description}</div>
+                            <div className={`badge-tooltip-status ${isEarned ? '' : 'locked'}`}>
+                              {isEarned ? '✓ Earned!' : goalText}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+                <div style={{ marginTop: 12, textAlign: 'center', fontSize: 12, color: '#64748b' }}>
+                  {earnedBadgeIds.size} of {(allBadges || []).filter((b: BadgeRecord) => b.name !== 'perfect_attempt').length} badges earned
                 </div>
               </div>
             </div>
@@ -265,14 +304,7 @@ export default async function MissionPage() {
       </main>
 
       {/* Next Day Button */}
-      <form action={async () => {
-        "use server";
-        await advanceSimulationDay();
-      }}>
-        <button type="submit" className="next-day-float">
-          <i className="fas fa-sun" style={{ color: '#facc15' }}></i> Next Day
-        </button>
-      </form>
+      <NextDayButton />
     </div>
   );
 }

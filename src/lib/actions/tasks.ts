@@ -151,8 +151,37 @@ export async function startAttempt(taskId: string): Promise<{
     .select()
     .single();
 
-  if (attemptError || !attempt) {
-    console.error("Failed to create attempt:", attemptError);
+  let finalAttempt = attempt;
+  let finalAttemptNumber = attemptNumber;
+
+  if (attemptError) {
+    // Handle race conditions (e.g. Next.js prefetching + navigation)
+    // If error is unique constraint violation (code 23505), try to get the existing one
+    if ((attemptError as any).code === "23505") {
+      const { data: existing } = await db(supabase.from("task_attempts"))
+        .select()
+        .eq("daily_task_id", taskId)
+        .eq("attempt_number", attemptNumber)
+        .single();
+      
+      if (existing) {
+        finalAttempt = existing;
+      } else {
+        console.error("Failed to recover from unique violation:", attemptError);
+        return null;
+      }
+    } else {
+      console.error("Failed to create attempt:", {
+        error: attemptError,
+        taskId,
+        attemptNumber,
+        attemptData: attempt
+      });
+      return null;
+    }
+  }
+
+  if (!finalAttempt) {
     return null;
   }
 
@@ -160,8 +189,8 @@ export async function startAttempt(taskId: string): Promise<{
   const questions = await selectQuestionsForAttempt(task);
 
   return {
-    attemptId: attempt.id,
-    attemptNumber,
+    attemptId: finalAttempt.id,
+    attemptNumber: finalAttemptNumber,
     questions,
   };
 }

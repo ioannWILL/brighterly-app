@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentKid, logout } from "@/lib/actions/auth";
 import { getOrCreateDailyTasks } from "@/lib/actions/tasks";
 import { getSimulationDate, advanceSimulationDay } from "@/lib/actions/simulation";
+import NextDayButton from "@/components/common/next-day-button";
 
 // Helper to bypass strict Supabase type checking
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -145,13 +146,29 @@ export default async function KidDashboard() {
   }
 
   // Build dynamic message
-  const tutorName = "Ms. Sarah Chen";
+  const mathTeacher = "Ms. Sarah Chen";
+  const elaTeacher = "Ms. Jessica Miller";
+  const bothTeachers = `${mathTeacher} and ${elaTeacher}`;
+
+  const hasIncompleteMath = incompleteTasks.some(t => t.discipline?.name === 'math');
+  const hasIncompleteEla = incompleteTasks.some(t => t.discipline?.name === 'ela');
+  
+  let tutorDisplay = bothTeachers;
+  if (incompleteCount > 0) {
+    if (hasIncompleteMath && hasIncompleteEla) {
+      tutorDisplay = bothTeachers;
+    } else if (hasIncompleteMath) {
+      tutorDisplay = mathTeacher;
+    } else if (hasIncompleteEla) {
+      tutorDisplay = elaTeacher;
+    }
+  }
 
   let promoTitle = "";
   let promoDescription = "";
 
   if (incompleteCount > 0) {
-    promoTitle = `${tutorName} sent you new challenges!`;
+    promoTitle = `${tutorDisplay} sent you new challenges!`;
 
     // Build description parts
     const parts: string[] = [];
@@ -171,7 +188,7 @@ export default async function KidDashboard() {
     promoDescription = parts.join(" ");
   } else {
     promoTitle = "Great job! All challenges complete!";
-    promoDescription = `You've earned all available XP for today. Come back tomorrow for new challenges from ${tutorName}!`;
+    promoDescription = `You've earned all available XP for today. Come back tomorrow for new challenges from ${bothTeachers}!`;
   }
 
   return (
@@ -183,27 +200,21 @@ export default async function KidDashboard() {
             <img src="https://cs.brighterly.com/_nuxt/brighterly.CIV4ES6z.svg" alt="Brighterly" style={{ height: 32 }} />
           </div>
 
-          <nav className="nav-links">
-            <a href="#" className="nav-item active">
-              <i className="fas fa-calculator" style={{ fontSize: 14 }}></i> Math
-            </a>
-            <a href="#" className="nav-item">
-              <i className="fas fa-book" style={{ fontSize: 14 }}></i> ELA
-            </a>
-          </nav>
-
           <div className="user-profile">
-            <Link href="/parent" className="nav-item" style={{ fontSize: 13 }}>
-              <i className="fas fa-user-shield"></i>
-              Parent
+            <Link href="/parent" className="nav-item" style={{ fontSize: 13, marginRight: 15 }}>
+              <i className="fas fa-user-shield"></i> Parent Portal
             </Link>
-            <div className="avatar">{kid.name.charAt(0).toUpperCase()}</div>
-            <span className="username">{kid.name}</span>
+            
+            <a href="#" className="nav-item" style={{ fontSize: 13, marginRight: 15 }}>
+              <i className="fas fa-chalkboard-teacher" style={{ color: '#8b5cf6' }}></i> Tutor View
+            </a>
+            
             <form action={logout}>
               <button
                 type="submit"
                 className="nav-item"
-                style={{ fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', marginLeft: 10 }}
+                title="Logout"
+                style={{ fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', marginLeft: 15 }}
               >
                 <i className="fas fa-sign-out-alt"></i>
               </button>
@@ -215,12 +226,9 @@ export default async function KidDashboard() {
       <main style={{ padding: '30px 0' }}>
         <div className="container">
           {/* Page Header */}
-          <div style={{ marginBottom: 20 }}>
-            <h1 style={{ fontSize: 28, display: 'flex', alignItems: 'center', gap: 15 }}>
-              Math program
-              <a href="#" style={{ fontSize: 14, color: '#6679dd', textDecoration: 'none', fontWeight: 500 }}>
-                Read more <i className="fas fa-arrow-right"></i>
-              </a>
+          <div style={{ marginBottom: 40 }}>
+            <h1 style={{ fontSize: 48, fontWeight: 800, color: '#1e293b' }}>
+              Hi, {kid.name}! 👋
             </h1>
           </div>
 
@@ -243,15 +251,16 @@ export default async function KidDashboard() {
               {/* Promo Card - Challenges CTA */}
               <div className="card" style={{ display: 'flex', padding: 30, gap: 30, background: 'linear-gradient(to right, #ffffff, #f0f4ff)' }}>
                 <div style={{ flex: 1 }}>
-                  <h3 style={{ fontSize: 22, marginBottom: 10 }}>
+                  <h3 style={{ fontSize: 28, fontWeight: 800, marginBottom: 15, color: '#1e293b' }}>
                     {promoTitle}
                   </h3>
                   <p
-                    style={{ color: '#4b5563', marginBottom: 20 }}
+                    className="promo-description"
+                    style={{ color: '#475569', marginBottom: 25, fontSize: 16, lineHeight: 1.6 }}
                     dangerouslySetInnerHTML={{ __html: promoDescription }}
                   />
                   {incompleteCount > 0 && (
-                    <Link href="/kid/mission" className="btn btn-yellow">
+                    <Link href="/kid/mission" className="btn btn-yellow" style={{ padding: '14px 30px', fontSize: 16, fontWeight: 700 }}>
                       <i className="fas fa-rocket"></i> Start Challenges
                     </Link>
                   )}
@@ -276,18 +285,12 @@ export default async function KidDashboard() {
                       <i className="fas fa-rocket"></i> {incompleteCount} Quest{incompleteCount > 1 ? 's' : ''}
                     </span>
                   )}
-                  <div style={{
-                    width: '100%',
-                    height: 150,
-                    background: 'linear-gradient(135deg, #6679dd 0%, #8b5cf6 100%)',
-                    borderRadius: 8,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'white',
-                    fontSize: 48
-                  }}>
-                    {incompleteCount > 0 ? '🚀' : '🎉'}
+                  <div className="promo-illustration-container">
+                    <img 
+                      src="/assets/promo-illustration.png" 
+                      alt="Challenges" 
+                      style={{ width: '100%', height: 'auto', objectFit: 'contain' }} 
+                    />
                   </div>
                 </div>
               </div>
@@ -316,14 +319,21 @@ export default async function KidDashboard() {
                 </div>
               )}
 
-              {/* Lesson Card */}
+              {/* Math Lesson Card */}
               <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 30 }}>
-                <div>
-                  <h2 style={{ fontSize: 20, marginBottom: 5 }}>{lessonDateStr} 12:00 PM</h2>
-                  <p style={{ color: '#6679dd', fontWeight: 500 }}>
-                    <i className="fas fa-calendar" style={{ marginRight: 8 }}></i>
-                    Math lesson with {tutorName} in 1 day
-                  </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+                  <img 
+                    src="/tutors/sarah.png" 
+                    alt={mathTeacher} 
+                    style={{ width: 62, height: 62, borderRadius: '50%', objectFit: 'cover', border: '3px solid #e0e7ff', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }} 
+                  />
+                  <div>
+                    <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8, color: '#1e293b' }}>{lessonDateStr} 12:00 PM</h2>
+                    <p style={{ color: '#6679dd', fontWeight: 700, fontSize: 15 }}>
+                      <i className="fas fa-calculator" style={{ marginRight: 8 }}></i>
+                      Math lesson with {mathTeacher} in 1 day
+                    </p>
+                  </div>
                 </div>
                 <div style={{ display: 'flex', gap: 15 }}>
                   <button style={{
@@ -346,18 +356,41 @@ export default async function KidDashboard() {
                 </div>
               </div>
 
-              {/* Subscribe Card */}
-              <div className="card" style={{ padding: 30, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <h3 style={{ fontSize: 18, marginBottom: 5 }}>Subscribe to get worksheets</h3>
-                  <p style={{ color: '#4b5563', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    Get free worksheets & lesson reminders via Meta Messenger
-                    <i className="fab fa-facebook-messenger" style={{ color: '#0084ff' }}></i>
-                  </p>
+              {/* ELA Lesson Card */}
+              <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 30 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+                  <img 
+                    src="/tutors/jessica.png" 
+                    alt="Ms. Jessica Miller" 
+                    style={{ width: 62, height: 62, borderRadius: '50%', objectFit: 'cover', border: '3px solid #dcfce7', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }} 
+                  />
+                  <div>
+                    <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8, color: '#1e293b' }}>Fri, Apr 3 12:00 PM</h2>
+                    <p style={{ color: '#4CAF50', fontWeight: 700, fontSize: 15 }}>
+                      <i className="fas fa-book" style={{ marginRight: 8 }}></i>
+                      ELA lesson with Ms. Jessica Miller in 1 week
+                    </p>
+                  </div>
                 </div>
-                <button className="btn btn-outline">
-                  Subscribe <i className="fas fa-external-link-alt"></i>
-                </button>
+                <div style={{ display: 'flex', gap: 15 }}>
+                  <button style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 8,
+                    border: '1px solid #e5e7eb',
+                    background: '#fff',
+                    color: '#4b5563',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <i className="fas fa-history"></i>
+                  </button>
+                  <button className="btn" style={{ border: '1px solid #e5e7eb', background: '#fff', color: '#4b5563' }}>
+                    Reschedule
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -372,9 +405,9 @@ export default async function KidDashboard() {
                       <i className="fas fa-star" style={{ color: '#f59e0b' }}></i>
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600 }}>{stats.xp} XP</div>
-                      <div style={{ fontSize: 12, color: '#4b5563' }}>
-                        {xpNeededForNextLevel - currentXp} XP to Level {currentLevel + 1}
+                      <div style={{ fontWeight: 800, fontSize: 18 }}>{stats.xp} XP</div>
+                      <div style={{ fontSize: 13, color: '#64748b', fontWeight: 500 }}>
+                        <span style={{ fontWeight: 700, color: '#f59e0b' }}>{xpNeededForNextLevel - currentXp} XP</span> to Level {currentLevel + 1}
                       </div>
                     </div>
                   </div>
@@ -383,8 +416,8 @@ export default async function KidDashboard() {
                       <i className="fas fa-shield-alt" style={{ color: '#8b5cf6' }}></i>
                     </div>
                     <div>
-                      <div style={{ fontWeight: 600 }}>Level {stats.level}</div>
-                      <div style={{ fontSize: 12, color: '#4b5563' }}>Current level</div>
+                      <div style={{ fontWeight: 800, fontSize: 18 }}>Level {stats.level}</div>
+                      <div style={{ fontSize: 13, color: '#64748b', fontWeight: 500 }}>Current level</div>
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -392,15 +425,15 @@ export default async function KidDashboard() {
                       <i className="fas fa-fire" style={{ color: '#ef4444' }}></i>
                     </div>
                     <div>
-                      <div style={{ fontWeight: 600 }}>{stats.streak} days</div>
-                      <div style={{ fontSize: 12, color: '#4b5563' }}>Current streak</div>
+                      <div style={{ fontWeight: 800, fontSize: 18 }}>{stats.streak} days</div>
+                      <div style={{ fontSize: 13, color: '#64748b', fontWeight: 500 }}>Current streak</div>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Badges Card */}
-              <div className="card" style={{ padding: 24 }}>
+              <div className="card badges-card" style={{ padding: 24 }}>
                 <h3 style={{ fontWeight: 600, marginBottom: 20 }}>
                   <i className="fas fa-medal" style={{ marginRight: 8, color: '#f59e0b' }}></i>
                   Your Badges
@@ -410,6 +443,17 @@ export default async function KidDashboard() {
                     .filter((badge: BadgeRecord) => badge.name !== 'perfect_attempt') // Filter legacy badge
                     .map((badge: BadgeRecord) => {
                       const isEarned = earnedBadgeIds.has(badge.id);
+                      
+                      // Format technical goal (e.g. level_10 -> Reach Level 10)
+                      let goalText = badge.name;
+                      if (badge.name.startsWith('level_')) {
+                        goalText = `Reach Level ${badge.name.split('_')[1]}`;
+                      } else if (badge.name.startsWith('streak_')) {
+                        goalText = `${badge.name.split('_')[1]}-Day Streak`;
+                      } else {
+                        goalText = badge.name.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                      }
+
                       return (
                         <div
                           key={badge.id}
@@ -417,9 +461,10 @@ export default async function KidDashboard() {
                         >
                           <span>{badge.icon}</span>
                           <div className="badge-tooltip">
+                            {/* User requested: Title is the "Super Learner" (description) and goal is "Reach Level 10" (name) */}
                             <div className="badge-tooltip-title">{badge.description}</div>
                             <div className={`badge-tooltip-status ${isEarned ? '' : 'locked'}`}>
-                              {isEarned ? '✓ Earned!' : '🔒 Keep going!'}
+                              {isEarned ? '✓ Earned!' : goalText}
                             </div>
                           </div>
                         </div>
@@ -431,26 +476,30 @@ export default async function KidDashboard() {
                 </div>
               </div>
 
-              {/* Tutoring Card */}
+              {/* Your Teachers Card */}
               <div className="card" style={{ padding: 24 }}>
-                <div style={{ borderRadius: 8, overflow: 'hidden', height: 120, marginBottom: 15, background: 'linear-gradient(135deg, #6679dd 0%, #8b5cf6 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <i className="fas fa-chalkboard-teacher" style={{ fontSize: 40, color: 'white' }}></i>
+                <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 20, color: '#1e293b' }}>Your Teachers</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
+                    <div style={{ width: 50, height: 50, borderRadius: '50%', overflow: 'hidden', border: '2px solid #e0e7ff' }}>
+                      <img src="/assets/sarah-chen.png" alt="Ms. Sarah Chen" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: 16 }}>Ms. Sarah Chen</div>
+                      <div style={{ fontSize: 13, color: '#6679dd', fontWeight: 600 }}>Math Specialist</div>
+                    </div>
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
+                    <div style={{ width: 50, height: 50, borderRadius: '50%', overflow: 'hidden', border: '2px solid #e8f5e9' }}>
+                      <img src="/assets/jessica-miller.png" alt="Ms. Jessica Miller" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: 16 }}>Ms. Jessica Miller</div>
+                      <div style={{ fontSize: 13, color: '#4CAF50', fontWeight: 600 }}>ELA Specialist</div>
+                    </div>
+                  </div>
                 </div>
-                <h3 style={{ fontSize: 16, marginBottom: 10 }}>Your Tutor: {tutorName}</h3>
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 13, color: '#4b5563' }}>
-                  <li style={{ padding: '5px 0', paddingLeft: 15, position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: 0 }}>•</span>
-                    Learn tough concepts
-                  </li>
-                  <li style={{ padding: '5px 0', paddingLeft: 15, position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: 0 }}>•</span>
-                    Homework assistance
-                  </li>
-                  <li style={{ padding: '5px 0', paddingLeft: 15, position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: 0 }}>•</span>
-                    ADHD Friendly Learning
-                  </li>
-                </ul>
               </div>
             </div>
           </div>
@@ -458,14 +507,7 @@ export default async function KidDashboard() {
       </main>
 
       {/* Next Day Button (Simulation Mode) */}
-      <form action={async () => {
-        "use server";
-        await advanceSimulationDay();
-      }}>
-        <button type="submit" className="next-day-float">
-          <i className="fas fa-sun" style={{ color: '#facc15' }}></i> Next Day
-        </button>
-      </form>
+      <NextDayButton />
     </div>
   );
 }

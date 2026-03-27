@@ -210,13 +210,13 @@ async function updateGamificationOnCompletion(kidId: string) {
   }
 
   // Level badges
-  if (newLevel >= 1 && current.level < 1) {
+  if (newLevel >= 1) {
     await awardBadge(kidId, "level_1");
   }
-  if (newLevel >= 5 && current.level < 5) {
+  if (newLevel >= 5) {
     await awardBadge(kidId, "level_5");
   }
-  if (newLevel >= 10 && current.level < 10) {
+  if (newLevel >= 10) {
     await awardBadge(kidId, "level_10");
   }
 }

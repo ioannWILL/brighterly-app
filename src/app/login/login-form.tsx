@@ -331,11 +331,19 @@ export function LoginForm({ grades }: LoginFormProps) {
               onChange={(e) => setGradeId(e.target.value)}
             >
               <option value="">Select grade</option>
-              {grades.map((grade) => (
-                <option key={grade.id} value={grade.id}>
-                  {grade.display_name}
-                </option>
-              ))}
+              {grades.map((grade) => {
+                const isGrade5 = grade.name === 'G5';
+                return (
+                  <option 
+                    key={grade.id} 
+                    value={grade.id} 
+                    disabled={!isGrade5}
+                    style={!isGrade5 ? { color: '#cbd5e1', fontStyle: 'italic' } : { fontWeight: 'bold', color: '#6679dd' }}
+                  >
+                    {grade.display_name} {isGrade5 ? '(demo)' : '(coming soon)'}
+                  </option>
+                );
+              })}
             </select>
           </div>
         </>

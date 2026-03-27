@@ -1517,6 +1517,10 @@ body.subject-ela .question-label {
 /* ============================================
    BADGE TOOLTIP STYLES
    ============================================ */
+.card.badges-card {
+  overflow: visible !important;
+}
+
 .badge-item {
   position: relative;
   display: inline-flex;
@@ -1528,10 +1532,45 @@ body.subject-ela .question-label {
   border-radius: 12px;
   cursor: default;
   transition: transform 0.2s, box-shadow 0.2s;
+  z-index: 10;
 }
 
 .badge-item:hover {
   transform: scale(1.1);
+  z-index: 100;
+}
+
+.badge-tooltip {
+  position: absolute;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b;
+  color: white;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  width: max-content;
+  max-width: 200px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s, transform 0.2s;
+  z-index: 1000;
+  pointer-events: none;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+  text-align: center;
+  line-height: 1.4;
+}
+
+.badge-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -6px;
+  border-width: 6px;
+  border-style: solid;
+  border-color: #1e293b transparent transparent transparent;
 }
 
 .badge-item.earned {
@@ -1554,37 +1593,10 @@ body.subject-ela .question-label {
   filter: grayscale(80%);
 }
 
-.badge-tooltip {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-  background: #1f2937;
-  color: white;
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  white-space: nowrap;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.2s, visibility 0.2s;
-  z-index: 100;
-  pointer-events: none;
-}
-
-.badge-tooltip::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 6px solid transparent;
-  border-top-color: #1f2937;
-}
-
 .badge-item:hover .badge-tooltip {
   opacity: 1;
   visibility: visible;
+  transform: translateX(-50%) translateY(-5px);
 }
 
 .badge-tooltip-title {
@@ -1607,4 +1619,86 @@ body.subject-ela .question-label {
 
 .badge-tooltip-status.locked {
   color: #fbbf24;
+}
+
+/* ============================================
+   PREMIUM UI ELEMENTS
+   ============================================ */
+.header-greeting-pill {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: white;
+  padding: 8px 20px 8px 8px;
+  border-radius: 50px;
+  box-shadow: 0 4px 15px rgba(102, 121, 221, 0.12);
+  border: 1px solid rgba(102, 121, 221, 0.15);
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.header-greeting-pill:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 121, 221, 0.18);
+}
+
+.header-greeting-pill .avatar {
+  background: linear-gradient(135deg, #6679dd 0%, #8b5cf6 100%);
+  color: white;
+  font-weight: 800;
+  width: 40px;
+  height: 40px;
+  font-size: 18px;
+  box-shadow: 0 2px 8px rgba(102, 121, 221, 0.4);
+}
+
+.header-greeting-pill .greeting-text {
+  font-weight: 800;
+  color: #1e293b;
+  font-size: 15px;
+}
+
+.promo-description {
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.promo-illustration-container {
+  flex: 1;
+  max-width: 250px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: white;
+  padding: 15px;
+  box-shadow: inset 0 2px 10px rgba(0,0,0,0.05);
+  border: 1px solid rgba(102, 121, 221, 0.1);
+}
+
+.tutoring-image-container {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  border: 1px solid rgba(0,0,0,0.05);
+}
+
+.tutor-benefits-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.tutor-benefits-list li {
+  font-size: 14px;
+  padding: 6px 0 6px 24px;
+  color: #475569;
+  position: relative;
+  font-weight: 600;
+}
+
+.tutor-benefits-list li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: #4CAF50;
+  font-weight: 800;
+  font-size: 16px;
 }
