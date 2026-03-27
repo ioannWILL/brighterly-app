@@ -4,9 +4,6 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Brighterly - Self-Learning Platform",
   description: "Fun math and ELA practice for kids between tutoring sessions",
-  icons: {
-    icon: "/favicon.ico",
-  },
 };
 
 export default function RootLayout({
