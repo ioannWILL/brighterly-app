@@ -67,20 +67,21 @@ export async function getOrCreateDailyTasks(
     }
 
     // Get a lesson for this discipline and grade
-    // Use explicit FK reference to avoid "more than one relationship" error
-    const { data: lessons } = await db(supabase.from("lessons"))
-      .select(`
-        *,
-        skill:skills!lessons_skill_id_fkey(
-          discipline_id,
-          grade_id
-        )
-      `)
-      .eq("skill.discipline_id", discipline.id)
-      .eq("skill.grade_id", kid.grade_id)
+    // First find skills matching discipline + grade, then get their lessons
+    const { data: matchingSkills } = await db(supabase.from("skills"))
+      .select("id")
+      .eq("discipline_id", discipline.id)
+      .eq("grade_id", kid.grade_id)
       .limit(1);
 
-    const lesson = lessons?.[0];
+    let lesson = null;
+    if (matchingSkills && matchingSkills.length > 0) {
+      const { data: lessons } = await db(supabase.from("lessons"))
+        .select("*")
+        .eq("skill_id", matchingSkills[0].id)
+        .limit(1);
+      lesson = lessons?.[0];
+    }
 
     // Create task name based on discipline
     const taskName =
@@ -215,17 +216,21 @@ async function selectQuestionsForAttempt(
   }
 
   // If no specific lesson or need more questions, get from same discipline
-  // Use explicit FK reference to avoid "more than one relationship" error
-  const { data: lessons } = await db(supabase.from("lessons"))
-    .select(`
-      id,
-      skill:skills!lessons_skill_id_fkey(discipline_id)
-    `)
-    .eq("skill.discipline_id", task.discipline_id)
-    .limit(10);
+  // First get skills for this discipline, then get lessons for those skills
+  const { data: skills } = await db(supabase.from("skills"))
+    .select("id")
+    .eq("discipline_id", task.discipline_id);
 
-  if (lessons) {
-    lessonIds = [...new Set([...lessonIds, ...lessons.map((l: any) => l.id)])];
+  if (skills && skills.length > 0) {
+    const skillIds = skills.map((s: { id: string }) => s.id);
+    const { data: lessons } = await db(supabase.from("lessons"))
+      .select("id")
+      .in("skill_id", skillIds)
+      .limit(10);
+
+    if (lessons) {
+      lessonIds = [...new Set([...lessonIds, ...lessons.map((l: { id: string }) => l.id)])];
+    }
   }
 
   if (lessonIds.length === 0) {
