@@ -1,10 +1,34 @@
 import Link from "next/link";
 import { getCurrentKid, getCurrentParent, logout } from "@/lib/actions/auth";
 import { createClient } from "@/lib/supabase/server";
+import { getSimulationDate } from "@/lib/actions/simulation";
+import { SkillsProgressGraph } from "@/components/parent/skills-progress-graph";
 
 // Helper to bypass strict Supabase type checking
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = (table: any) => table as any;
+
+interface LessonProgress {
+  id: string;
+  name: string;
+  isCompleted: boolean;
+  completedAt: string | null;
+  isRecent: boolean;
+}
+
+interface SkillProgress {
+  id: string;
+  name: string;
+  description: string | null;
+  lessons: LessonProgress[];
+}
+
+interface DisciplineProgress {
+  id: string;
+  name: string;
+  displayName: string;
+  skills: SkillProgress[];
+}
 
 /**
  * Parent Dashboard (Server Component)
@@ -37,6 +61,96 @@ export default async function ParentDashboard() {
       .order("created_at");
     if (kids) {
       allKids = kids;
+    }
+  }
+
+  // Get skills progress data for the graph
+  let disciplinesProgress: DisciplineProgress[] = [];
+  if (kid) {
+    const simDate = await getSimulationDate();
+    const sevenDaysAgo = new Date(simDate);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sevenDaysAgoStr = sevenDaysAgo.toISOString();
+
+    // Get all disciplines
+    const { data: disciplines } = await db(supabase.from("disciplines"))
+      .select("id, name, display_name")
+      .order("name");
+
+    if (disciplines) {
+      for (const disc of disciplines) {
+        // Get skills for this discipline and kid's grade
+        const { data: skills } = await db(supabase.from("skills"))
+          .select("id, name, description, sort_order")
+          .eq("discipline_id", disc.id)
+          .eq("grade_id", kid.grade_id)
+          .order("sort_order");
+
+        if (skills && skills.length > 0) {
+          const skillsWithLessons: SkillProgress[] = [];
+
+          for (const skill of skills) {
+            // Get lessons for this skill
+            const { data: lessons } = await db(supabase.from("lessons"))
+              .select("id, name, sort_order")
+              .eq("skill_id", skill.id)
+              .order("sort_order");
+
+            if (lessons && lessons.length > 0) {
+              // Get completed tasks for these lessons
+              const lessonIds = lessons.map((l: { id: string }) => l.id);
+              const { data: completedTasks } = await db(supabase.from("daily_tasks"))
+                .select("lesson_id, completed_at")
+                .eq("kid_id", kid.id)
+                .eq("is_completed", true)
+                .in("lesson_id", lessonIds);
+
+              const completedMap = new Map<string, string>();
+              if (completedTasks) {
+                for (const task of completedTasks) {
+                  if (task.lesson_id && task.completed_at) {
+                    // Keep the most recent completion
+                    const existing = completedMap.get(task.lesson_id);
+                    if (!existing || task.completed_at > existing) {
+                      completedMap.set(task.lesson_id, task.completed_at);
+                    }
+                  }
+                }
+              }
+
+              const lessonsProgress: LessonProgress[] = lessons.map((lesson: { id: string; name: string }) => {
+                const completedAt = completedMap.get(lesson.id) || null;
+                const isCompleted = !!completedAt;
+                const isRecent = completedAt ? completedAt >= sevenDaysAgoStr : false;
+
+                return {
+                  id: lesson.id,
+                  name: lesson.name,
+                  isCompleted,
+                  completedAt,
+                  isRecent,
+                };
+              });
+
+              skillsWithLessons.push({
+                id: skill.id,
+                name: skill.name,
+                description: skill.description,
+                lessons: lessonsProgress,
+              });
+            }
+          }
+
+          if (skillsWithLessons.length > 0) {
+            disciplinesProgress.push({
+              id: disc.id,
+              name: disc.name,
+              displayName: disc.display_name,
+              skills: skillsWithLessons,
+            });
+          }
+        }
+      }
     }
   }
 
@@ -131,6 +245,15 @@ export default async function ParentDashboard() {
                       <div style={{ fontSize: 13, color: 'var(--color-text-gray)', fontWeight: 600 }}>Tasks Completed</div>
                     </div>
                   </div>
+                </div>
+
+                {/* Skills Progress Graph */}
+                <div className="card" style={{ padding: 30 }}>
+                  <h3 style={{ fontWeight: 800, fontSize: 18, color: '#1e293b', marginBottom: 20 }}>
+                    <i className="fas fa-chart-bar" style={{ marginRight: 10, color: 'var(--color-primary)' }}></i>
+                    Skills Progress
+                  </h3>
+                  <SkillsProgressGraph disciplines={disciplinesProgress} />
                 </div>
 
                 {/* Learning Insights */}
