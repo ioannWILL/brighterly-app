@@ -67,10 +67,11 @@ export async function getOrCreateDailyTasks(
     }
 
     // Get a lesson for this discipline and grade
+    // Use explicit FK reference to avoid "more than one relationship" error
     const { data: lessons } = await db(supabase.from("lessons"))
       .select(`
         *,
-        skill:skills!inner(
+        skill:skills!lessons_skill_id_fkey(
           discipline_id,
           grade_id
         )
@@ -214,10 +215,11 @@ async function selectQuestionsForAttempt(
   }
 
   // If no specific lesson or need more questions, get from same discipline
+  // Use explicit FK reference to avoid "more than one relationship" error
   const { data: lessons } = await db(supabase.from("lessons"))
     .select(`
       id,
-      skill:skills!inner(discipline_id)
+      skill:skills!lessons_skill_id_fkey(discipline_id)
     `)
     .eq("skill.discipline_id", task.discipline_id)
     .limit(10);

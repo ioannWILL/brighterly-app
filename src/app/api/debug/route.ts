@@ -46,7 +46,7 @@ export async function GET(request: Request) {
           .select(`
             id,
             name,
-            skill:skills!inner(discipline_id, grade_id)
+            skill:skills!lessons_skill_id_fkey(discipline_id, grade_id)
           `)
           .eq("skill.discipline_id", taskData.discipline_id);
 
