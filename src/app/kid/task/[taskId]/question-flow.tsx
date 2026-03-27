@@ -65,6 +65,7 @@ export function QuestionFlow({
   const [feedbackMsg, setFeedbackMsg] = useState("");
   const [usedCorrectMessages, setUsedCorrectMessages] = useState<number[]>([]);
   const [usedWrongMessages, setUsedWrongMessages] = useState<number[]>([]);
+  const [isCompleting, setIsCompleting] = useState(false);
 
   const currentQuestion = questions[currentIndex];
   const totalQuestions = questions.length;
@@ -158,6 +159,7 @@ export function QuestionFlow({
   // Handle next question or complete
   async function handleNext() {
     if (isLastQuestion) {
+      setIsCompleting(true);
       const result = await completeAttempt(attemptId, correctCount);
 
       if (result.isSuccessful) {
@@ -296,11 +298,17 @@ export function QuestionFlow({
       {/* Action Buttons */}
       <div className="challenge-actions" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
         {answerResult && (
-          <button onClick={handleNext} className="btn btn-yellow">
+          <button onClick={handleNext} className="btn btn-yellow" disabled={isCompleting}>
             {isLastQuestion ? (
-              <>
-                <i className="fas fa-trophy"></i> See Results
-              </>
+              isCompleting ? (
+                <>
+                  <i className="fas fa-spinner fa-spin"></i> Loading Results...
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-trophy"></i> See Results
+                </>
+              )
             ) : (
               <>
                 Next Question <i className="fas fa-arrow-right"></i>
