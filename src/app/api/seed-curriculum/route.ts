@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
-import fs from "fs";
-import path from "path";
+
+// Helper to bypass strict Supabase type checking
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = (table: any) => table as any;
 
 /**
  * API Route to seed the full Grade 3 curriculum
@@ -12,8 +14,7 @@ export async function GET() {
 
   try {
     // Check if curriculum already seeded
-    const { data: existingDomains } = await supabase
-      .from("curriculum_domains")
+    const { data: existingDomains } = await db(supabase.from("curriculum_domains"))
       .select("id")
       .limit(1);
 
@@ -25,17 +26,10 @@ export async function GET() {
       });
     }
 
-    // Read and execute the curriculum SQL file
-    const sqlPath = path.join(process.cwd(), "supabase/seeds/grade3-curriculum.sql");
-    const sqlContent = fs.readFileSync(sqlPath, "utf-8");
-
-    // Execute the SQL (Supabase doesn't support raw SQL directly, so we'll parse and insert)
-    // For now, let's seed the domains and skills programmatically
-
     // Get discipline IDs
-    const { data: mathDisc } = await supabase.from("disciplines").select("id").eq("name", "math").single();
-    const { data: elaDisc } = await supabase.from("disciplines").select("id").eq("name", "ela").single();
-    const { data: g3Grade } = await supabase.from("grades").select("id").eq("name", "G3").single();
+    const { data: mathDisc } = await db(supabase.from("disciplines")).select("id").eq("name", "math").single();
+    const { data: elaDisc } = await db(supabase.from("disciplines")).select("id").eq("name", "ela").single();
+    const { data: g3Grade } = await db(supabase.from("grades")).select("id").eq("name", "G3").single();
 
     if (!mathDisc || !elaDisc || !g3Grade) {
       return NextResponse.json({
@@ -55,8 +49,7 @@ export async function GET() {
       { code: "G", name: "Geometry", description: "Reason with shapes and their attributes", sort_order: 5 },
     ];
 
-    const { data: insertedMathDomains, error: mathDomainError } = await supabase
-      .from("curriculum_domains")
+    const { data: insertedMathDomains, error: mathDomainError } = await db(supabase.from("curriculum_domains"))
       .insert(mathDomains.map(d => ({ ...d, discipline_id: mathDisc.id })))
       .select();
 
@@ -71,16 +64,15 @@ export async function GET() {
       { code: "L", name: "Language", description: "Conventions of Standard English; Vocabulary", sort_order: 5 },
     ];
 
-    const { data: insertedElaDomains, error: elaDomainError } = await supabase
-      .from("curriculum_domains")
+    const { data: insertedElaDomains, error: elaDomainError } = await db(supabase.from("curriculum_domains"))
       .insert(elaDomains.map(d => ({ ...d, discipline_id: elaDisc.id })))
       .select();
 
     if (elaDomainError) throw elaDomainError;
 
     // Create domain lookup maps
-    const mathDomainMap = new Map(insertedMathDomains?.map(d => [d.code, d.id]) || []);
-    const elaDomainMap = new Map(insertedElaDomains?.map(d => [d.code, d.id]) || []);
+    const mathDomainMap = new Map(insertedMathDomains?.map((d: { code: string; id: string }) => [d.code, d.id]) || []);
+    const elaDomainMap = new Map(insertedElaDomains?.map((d: { code: string; id: string }) => [d.code, d.id]) || []);
 
     // Seed Math Skills with domains
     const mathSkills = [
@@ -125,7 +117,7 @@ export async function GET() {
     ];
 
     for (const skill of mathSkills) {
-      await supabase.from("skills").insert({
+      await db(supabase.from("skills")).insert({
         discipline_id: mathDisc.id,
         grade_id: g3Grade.id,
         domain_id: mathDomainMap.get(skill.domain),
@@ -181,7 +173,7 @@ export async function GET() {
     ];
 
     for (const skill of elaSkills) {
-      await supabase.from("skills").insert({
+      await db(supabase.from("skills")).insert({
         discipline_id: elaDisc.id,
         grade_id: g3Grade.id,
         domain_id: elaDomainMap.get(skill.domain),
@@ -195,8 +187,8 @@ export async function GET() {
     }
 
     // Get count of seeded items
-    const { count: skillCount } = await supabase.from("skills").select("*", { count: "exact", head: true });
-    const { count: domainCount } = await supabase.from("curriculum_domains").select("*", { count: "exact", head: true });
+    const { count: skillCount } = await db(supabase.from("skills")).select("*", { count: "exact", head: true });
+    const { count: domainCount } = await db(supabase.from("curriculum_domains")).select("*", { count: "exact", head: true });
 
     return NextResponse.json({
       message: "Curriculum seeded successfully!",
