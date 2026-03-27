@@ -332,15 +332,15 @@ export function LoginForm({ grades }: LoginFormProps) {
             >
               <option value="">Select grade</option>
               {grades.map((grade) => {
-                const isGrade5 = grade.name === 'G5';
+                const isGrade3 = grade.name === 'G3';
                 return (
-                  <option 
-                    key={grade.id} 
-                    value={grade.id} 
-                    disabled={!isGrade5}
-                    style={!isGrade5 ? { color: '#cbd5e1', fontStyle: 'italic' } : { fontWeight: 'bold', color: '#6679dd' }}
+                  <option
+                    key={grade.id}
+                    value={grade.id}
+                    disabled={!isGrade3}
+                    style={!isGrade3 ? { color: '#cbd5e1', fontStyle: 'italic' } : { fontWeight: 'bold', color: '#6679dd' }}
                   >
-                    {grade.display_name} {isGrade5 ? '(demo)' : '(coming soon)'}
+                    {grade.display_name} {isGrade3 ? '(demo)' : '(coming soon)'}
                   </option>
                 );
               })}
