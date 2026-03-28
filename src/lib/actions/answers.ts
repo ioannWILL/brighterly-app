@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getSimulationDate } from "./simulation";
 
@@ -122,6 +123,10 @@ export async function completeAttempt(
 
       // Generate session summary
       await generateSessionSummary(attempt.daily_task_id);
+
+      // Revalidate dashboards to show updated progress
+      revalidatePath("/parent");
+      revalidatePath("/kid");
     }
   }
 

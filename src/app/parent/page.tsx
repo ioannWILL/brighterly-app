@@ -1,46 +1,10 @@
 import Link from "next/link";
 import { getCurrentKid, getCurrentParent, logout } from "@/lib/actions/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getSimulationDate } from "@/lib/actions/simulation";
-import { SkillsProgressGraph } from "@/components/parent/skills-progress-graph";
 
 // Helper to bypass strict Supabase type checking
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = (table: any) => table as any;
-
-interface LessonStatus {
-  id: string;
-  name: string;
-  isCompleted: boolean;
-  isRecent: boolean; // completed in last 7 days
-  completedAt: string | null;
-}
-
-interface SkillStatus {
-  id: string;
-  name: string;
-  description: string | null;
-  ccssCode: string | null;
-  status: "not_started" | "in_progress" | "completed" | "recent"; // recent = all completed in last 7 days
-  lessons: LessonStatus[];
-  completedLessons: number;
-  totalLessons: number;
-}
-
-interface DomainProgress {
-  id: string;
-  code: string;
-  name: string;
-  description: string | null;
-  skills: SkillStatus[];
-}
-
-interface DisciplineProgress {
-  id: string;
-  name: string;
-  displayName: string;
-  domains: DomainProgress[];
-}
 
 /**
  * Parent Dashboard (Server Component)
@@ -76,194 +40,47 @@ export default async function ParentDashboard() {
     }
   }
 
-  // Get skills progress data for the graph (full curriculum with domains)
-  let disciplinesProgress: DisciplineProgress[] = [];
+  // Get latest session summary for Learning Insights
+  let latestSummary: {
+    lessonName: string;
+    accuracy: number;
+    strengths: string[];
+    needsImprovement: string[];
+    completedAt: string;
+  } | null = null;
+
   if (kid) {
-    const simDate = await getSimulationDate();
-    const sevenDaysAgo = new Date(simDate);
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const sevenDaysAgoStr = sevenDaysAgo.toISOString();
-
-    // Get all completed tasks for this kid with lesson_id
-    const { data: completedTasks } = await db(supabase.from("daily_tasks"))
-      .select("lesson_id, completed_at")
+    // First get the most recent completed task
+    const { data: recentTasks } = await db(supabase.from("daily_tasks"))
+      .select("id, completed_at, lesson_id")
       .eq("kid_id", kid.id)
-      .eq("is_completed", true);
+      .eq("is_completed", true)
+      .order("completed_at", { ascending: false })
+      .limit(1);
 
-    // Create a map of lesson_id -> completion date
-    const lessonCompletionMap = new Map<string, string>();
-    if (completedTasks) {
-      for (const task of completedTasks) {
-        if (task.lesson_id && task.completed_at) {
-          const existing = lessonCompletionMap.get(task.lesson_id);
-          if (!existing || task.completed_at > existing) {
-            lessonCompletionMap.set(task.lesson_id, task.completed_at);
-          }
-        }
-      }
-    }
+    const recentTask = recentTasks?.[0];
 
-    // Get all disciplines
-    const { data: disciplines } = await db(supabase.from("disciplines"))
-      .select("id, name, display_name")
-      .order("name");
+    if (recentTask) {
+      // Get the lesson name
+      const { data: lesson } = await db(supabase.from("lessons"))
+        .select("name, display_name")
+        .eq("id", recentTask.lesson_id)
+        .single();
 
-    if (disciplines) {
-      for (const disc of disciplines) {
-        // Get domains for this discipline
-        const { data: domains } = await db(supabase.from("curriculum_domains"))
-          .select("id, code, name, description, sort_order")
-          .eq("discipline_id", disc.id)
-          .order("sort_order");
+      // Get the session summary
+      const { data: summary } = await db(supabase.from("session_summaries"))
+        .select("accuracy_percent, strengths, needs_improvement")
+        .eq("daily_task_id", recentTask.id)
+        .single();
 
-        const domainsWithSkills: DomainProgress[] = [];
-
-        if (domains && domains.length > 0) {
-          for (const domain of domains) {
-            // Get skills for this domain and kid's grade
-            const { data: skills } = await db(supabase.from("skills"))
-              .select("id, name, description, ccss_code, sort_order")
-              .eq("domain_id", domain.id)
-              .eq("grade_id", kid.grade_id)
-              .order("sort_order");
-
-            if (skills && skills.length > 0) {
-              const skillsWithStatus: SkillStatus[] = [];
-
-              for (const skill of skills) {
-                // Get lessons for this skill
-                const { data: lessons } = await db(supabase.from("lessons"))
-                  .select("id, name, sort_order")
-                  .eq("skill_id", skill.id)
-                  .order("sort_order");
-
-                const lessonStatuses: LessonStatus[] = (lessons || []).map((lesson: { id: string; name: string }) => {
-                  const completedAt = lessonCompletionMap.get(lesson.id) || null;
-                  const isCompleted = !!completedAt;
-                  const isRecent = completedAt ? completedAt >= sevenDaysAgoStr : false;
-
-                  return {
-                    id: lesson.id,
-                    name: lesson.name,
-                    isCompleted,
-                    isRecent,
-                    completedAt,
-                  };
-                });
-
-                const totalLessons = lessonStatuses.length;
-                const completedLessons = lessonStatuses.filter(l => l.isCompleted).length;
-                const recentLessons = lessonStatuses.filter(l => l.isRecent).length;
-
-                // Determine skill status based on lesson completions
-                let status: "not_started" | "in_progress" | "completed" | "recent" = "not_started";
-                if (totalLessons > 0) {
-                  if (completedLessons === totalLessons) {
-                    // All lessons completed
-                    status = recentLessons > 0 ? "recent" : "completed";
-                  } else if (completedLessons > 0) {
-                    // Some lessons completed
-                    status = "in_progress";
-                  }
-                }
-
-                skillsWithStatus.push({
-                  id: skill.id,
-                  name: skill.name,
-                  description: skill.description,
-                  ccssCode: skill.ccss_code,
-                  status,
-                  lessons: lessonStatuses,
-                  completedLessons,
-                  totalLessons,
-                });
-              }
-
-              domainsWithSkills.push({
-                id: domain.id,
-                code: domain.code,
-                name: domain.name,
-                description: domain.description,
-                skills: skillsWithStatus,
-              });
-            }
-          }
-        }
-
-        // Also check for skills without domains (legacy data from basic seed)
-        const { data: legacySkills } = await db(supabase.from("skills"))
-          .select("id, name, description, ccss_code, sort_order")
-          .eq("discipline_id", disc.id)
-          .eq("grade_id", kid.grade_id)
-          .is("domain_id", null)
-          .order("sort_order");
-
-        if (legacySkills && legacySkills.length > 0) {
-          const skillsWithStatus: SkillStatus[] = [];
-
-          for (const skill of legacySkills) {
-            // Get lessons for this skill
-            const { data: lessons } = await db(supabase.from("lessons"))
-              .select("id, name, sort_order")
-              .eq("skill_id", skill.id)
-              .order("sort_order");
-
-            const lessonStatuses: LessonStatus[] = (lessons || []).map((lesson: { id: string; name: string }) => {
-              const completedAt = lessonCompletionMap.get(lesson.id) || null;
-              const isCompleted = !!completedAt;
-              const isRecent = completedAt ? completedAt >= sevenDaysAgoStr : false;
-
-              return {
-                id: lesson.id,
-                name: lesson.name,
-                isCompleted,
-                isRecent,
-                completedAt,
-              };
-            });
-
-            const totalLessons = lessonStatuses.length;
-            const completedLessons = lessonStatuses.filter(l => l.isCompleted).length;
-            const recentLessons = lessonStatuses.filter(l => l.isRecent).length;
-
-            let status: "not_started" | "in_progress" | "completed" | "recent" = "not_started";
-            if (totalLessons > 0) {
-              if (completedLessons === totalLessons) {
-                status = recentLessons > 0 ? "recent" : "completed";
-              } else if (completedLessons > 0) {
-                status = "in_progress";
-              }
-            }
-
-            skillsWithStatus.push({
-              id: skill.id,
-              name: skill.name,
-              description: skill.description,
-              ccssCode: skill.ccss_code,
-              status,
-              lessons: lessonStatuses,
-              completedLessons,
-              totalLessons,
-            });
-          }
-
-          domainsWithSkills.unshift({
-            id: "legacy",
-            code: "GEN",
-            name: "General Skills",
-            description: "Skills not yet categorized",
-            skills: skillsWithStatus,
-          });
-        }
-
-        if (domainsWithSkills.length > 0) {
-          disciplinesProgress.push({
-            id: disc.id,
-            name: disc.name,
-            displayName: disc.display_name,
-            domains: domainsWithSkills,
-          });
-        }
+      if (summary) {
+        latestSummary = {
+          lessonName: lesson?.display_name || lesson?.name || "Recent Lesson",
+          accuracy: summary.accuracy_percent || 0,
+          strengths: summary.strengths || [],
+          needsImprovement: summary.needs_improvement || [],
+          completedAt: recentTask.completed_at,
+        };
       }
     }
   }
@@ -361,41 +178,124 @@ export default async function ParentDashboard() {
                   </div>
                 </div>
 
-                {/* Skills Progress Graph */}
+                {/* Skills Progress Link */}
                 <div className="card" style={{ padding: 30 }}>
-                  <h3 style={{ fontWeight: 800, fontSize: 18, color: '#1e293b', marginBottom: 20 }}>
+                  <h3 style={{ fontWeight: 800, fontSize: 18, color: '#1e293b', marginBottom: 15 }}>
                     <i className="fas fa-chart-bar" style={{ marginRight: 10, color: 'var(--color-primary)' }}></i>
                     Skills Progress
                   </h3>
-                  <SkillsProgressGraph disciplines={disciplinesProgress} />
+                  <p style={{ color: 'var(--color-text-gray)', fontSize: 14, marginBottom: 20 }}>
+                    View {kid.name}&apos;s detailed progress across all Math and ELA skills.
+                  </p>
+                  <Link
+                    href="/parent/skills"
+                    className="btn btn-primary"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                  >
+                    <i className="fas fa-sitemap"></i>
+                    Show Skill Tree
+                  </Link>
                 </div>
 
-                {/* Learning Insights */}
+                {/* Learning Insights - From Last Completed Lesson */}
                 <div className="card" style={{ padding: 30 }}>
                   <h3 style={{ fontWeight: 800, fontSize: 18, color: '#1e293b', marginBottom: 20 }}>
                     <i className="fas fa-lightbulb" style={{ marginRight: 10, color: '#f59e0b' }}></i>
                     Learning Insights
+                    {latestSummary && (
+                      <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--color-text-gray)', marginLeft: 10 }}>
+                        from &quot;{latestSummary.lessonName}&quot;
+                      </span>
+                    )}
                   </h3>
 
-                  <div style={{ background: '#f0fdf4', padding: 20, borderRadius: 12, borderLeft: '4px solid #4CAF50', marginBottom: 15 }}>
-                    <h4 style={{ color: '#166534', marginBottom: 8 }}>
-                      <i className="fas fa-star" style={{ marginRight: 8 }}></i>
-                      Excelling At
-                    </h4>
-                    <p style={{ color: 'var(--color-text-gray)', fontSize: 14 }}>
-                      {kid.name} is showing great progress! Keep up the practice.
-                    </p>
-                  </div>
+                  {latestSummary ? (
+                    <>
+                      {/* Accuracy Badge */}
+                      <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 15 }}>
+                        <div style={{
+                          width: 60,
+                          height: 60,
+                          borderRadius: '50%',
+                          background: latestSummary.accuracy >= 80 ? '#dcfce7' : latestSummary.accuracy >= 60 ? '#fef9c3' : '#fee2e2',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 800,
+                          fontSize: 18,
+                          color: latestSummary.accuracy >= 80 ? '#166534' : latestSummary.accuracy >= 60 ? '#854d0e' : '#991b1b'
+                        }}>
+                          {Math.round(latestSummary.accuracy)}%
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, color: '#1e293b' }}>Last Lesson Accuracy</div>
+                          <div style={{ fontSize: 13, color: 'var(--color-text-gray)' }}>
+                            {new Date(latestSummary.completedAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                          </div>
+                        </div>
+                      </div>
 
-                  <div style={{ background: '#fff7ed', padding: 20, borderRadius: 12, borderLeft: '4px solid #f59e0b' }}>
-                    <h4 style={{ color: '#9a3412', marginBottom: 8 }}>
-                      <i className="fas fa-book-open" style={{ marginRight: 8 }}></i>
-                      Focus Areas
-                    </h4>
-                    <p style={{ color: 'var(--color-text-gray)', fontSize: 14 }}>
-                      Complete more daily tasks to identify specific focus areas.
-                    </p>
-                  </div>
+                      {/* Strengths */}
+                      <div style={{ background: '#f0fdf4', padding: 20, borderRadius: 12, borderLeft: '4px solid #4CAF50', marginBottom: 15 }}>
+                        <h4 style={{ color: '#166534', marginBottom: 12 }}>
+                          <i className="fas fa-star" style={{ marginRight: 8 }}></i>
+                          What {kid.name} Did Well
+                        </h4>
+                        {latestSummary.strengths.length > 0 ? (
+                          <ul style={{ margin: 0, paddingLeft: 20, color: '#374151', fontSize: 14 }}>
+                            {latestSummary.strengths.slice(0, 3).map((strength, i) => (
+                              <li key={i} style={{ marginBottom: 6 }}>{strength}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p style={{ color: 'var(--color-text-gray)', fontSize: 14, margin: 0 }}>
+                            Keep practicing to build strengths!
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Needs Improvement */}
+                      <div style={{ background: '#fff7ed', padding: 20, borderRadius: 12, borderLeft: '4px solid #f59e0b' }}>
+                        <h4 style={{ color: '#9a3412', marginBottom: 12 }}>
+                          <i className="fas fa-book-open" style={{ marginRight: 8 }}></i>
+                          Areas to Practice
+                        </h4>
+                        {latestSummary.needsImprovement.length > 0 ? (
+                          <ul style={{ margin: 0, paddingLeft: 20, color: '#374151', fontSize: 14 }}>
+                            {latestSummary.needsImprovement.slice(0, 3).map((area, i) => (
+                              <li key={i} style={{ marginBottom: 6 }}>{area}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p style={{ color: 'var(--color-text-gray)', fontSize: 14, margin: 0 }}>
+                            Great job! No areas need extra focus right now.
+                          </p>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ background: '#f0fdf4', padding: 20, borderRadius: 12, borderLeft: '4px solid #4CAF50', marginBottom: 15 }}>
+                        <h4 style={{ color: '#166534', marginBottom: 8 }}>
+                          <i className="fas fa-star" style={{ marginRight: 8 }}></i>
+                          Excelling At
+                        </h4>
+                        <p style={{ color: 'var(--color-text-gray)', fontSize: 14 }}>
+                          Complete a lesson to see what {kid.name} excels at!
+                        </p>
+                      </div>
+
+                      <div style={{ background: '#fff7ed', padding: 20, borderRadius: 12, borderLeft: '4px solid #f59e0b' }}>
+                        <h4 style={{ color: '#9a3412', marginBottom: 8 }}>
+                          <i className="fas fa-book-open" style={{ marginRight: 8 }}></i>
+                          Focus Areas
+                        </h4>
+                        <p style={{ color: 'var(--color-text-gray)', fontSize: 14 }}>
+                          Complete daily tasks to identify specific focus areas.
+                        </p>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
